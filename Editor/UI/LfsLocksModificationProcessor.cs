@@ -99,7 +99,8 @@ namespace Unity.VersionControl.Git.UI
                 return null;
 
             GitLock lck;
-            var repositoryPath = assetPath.ToSPath().RelativeToRepository(environment);
+            if (!assetPath.TryRelativeToRepository(environment, out var repositoryPath))
+                return null; // not an asset, or outside the selected repository
             if (locks.TryGetValue(repositoryPath, out lck))
                 return lck;
             return null;

@@ -244,8 +244,8 @@ namespace Unity.VersionControl.Git.UI
             if (selected == null)
                 return false;
 
-            SPath assetPath = AssetDatabase.GetAssetPath(selected.GetInstanceID()).ToSPath();
-            SPath repositoryPath = assetPath.RelativeToRepository(manager.Environment);
+            if (!AssetDatabase.GetAssetPath(selected.GetInstanceID()).TryRelativeToRepository(manager.Environment, out var repositoryPath))
+                return false; // outside the selected repository
 
             var alreadyLocked = locks.Any(x => repositoryPath == x.Path);
             if (alreadyLocked)
@@ -269,16 +269,16 @@ namespace Unity.VersionControl.Git.UI
             if (selected == null)
                 return false;
 
-            SPath assetPath = AssetDatabase.GetAssetPath(selected.GetInstanceID()).ToSPath();
-            SPath repositoryPath = assetPath.RelativeToRepository(manager.Environment);
+            if (!AssetDatabase.GetAssetPath(selected.GetInstanceID()).TryRelativeToRepository(manager.Environment, out var repositoryPath))
+                return false; // outside the selected repository
 
             return locks.Any(x => repositoryPath == x.Path && (!isLockedByCurrentUser || x.Owner.Name == currentUsername));
         }
 
         private static ITask CreateUnlockObjectTask(Object selected, bool force)
         {
-            SPath assetPath = AssetDatabase.GetAssetPath(selected.GetInstanceID()).ToSPath();
-            SPath repositoryPath = assetPath.RelativeToRepository(manager.Environment);
+            // Only reached for objects IsObjectLocked accepted, so the path is inside the repository.
+            AssetDatabase.GetAssetPath(selected.GetInstanceID()).TryRelativeToRepository(manager.Environment, out var repositoryPath);
 
             var task = Repository.ReleaseLock(repositoryPath, force);
             //task.OnEnd += (_, s, __) => { if (s) manager.TaskManager.Run(manager.UsageTracker.IncrementUnityProjectViewContextLfsUnlock, null); };
@@ -287,8 +287,8 @@ namespace Unity.VersionControl.Git.UI
 
         private static ITask CreateLockObjectTask(Object selected)
         {
-            SPath assetPath = AssetDatabase.GetAssetPath(selected.GetInstanceID()).ToSPath();
-            SPath repositoryPath = assetPath.RelativeToRepository(manager.Environment);
+            // Only reached for objects IsObjectUnlocked accepted, so the path is inside the repository.
+            AssetDatabase.GetAssetPath(selected.GetInstanceID()).TryRelativeToRepository(manager.Environment, out var repositoryPath);
 
             var task = Repository.RequestLock(repositoryPath);
             //task.OnEnd += (_, s, ___) => { if (s) manager.TaskManager.Run(manager.UsageTracker.IncrementUnityProjectViewContextLfsLock, null); };
@@ -300,8 +300,8 @@ namespace Unity.VersionControl.Git.UI
             guidsLocks.Clear();
             foreach (var lck in locks)
             {
-                SPath repositoryPath = lck.Path;
-                SPath assetPath = repositoryPath.RelativeToProject(manager.Environment);
+                if (!lck.Path.TryRelativeToProject(manager.Environment, out var assetPath))
+                    continue; // locked file lives outside the Unity project
 
                 var g = AssetDatabase.AssetPathToGUID(assetPath);
                 guidsLocks.Add(g);
