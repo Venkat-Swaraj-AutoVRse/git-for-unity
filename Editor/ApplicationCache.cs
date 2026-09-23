@@ -219,6 +219,7 @@ namespace Unity.VersionControl.Git
         [NonSerialized] private DateTimeOffset? initializedAtValue;
         [NonSerialized] private bool isInvalidating;
         [NonSerialized] protected bool forcedInvalidation;
+        [NonSerialized] private bool refreshPending;
 
         public event Action<CacheType> CacheInvalidated;
         public event Action<CacheType, DateTimeOffset> CacheUpdated;
@@ -244,7 +245,22 @@ namespace Unity.VersionControl.Git
 
         public void InvalidateData()
         {
-            forcedInvalidation = true;
+            InvalidateData(true);
+        }
+
+        public void InvalidateData(bool force)
+        {
+            if (force)
+            {
+                forcedInvalidation = true;
+            }
+            else if (isInvalidating)
+            {
+                // a refresh is already running; its result may predate this change, so run
+                // one more when it lands instead of stacking another git process now
+                refreshPending = true;
+                return;
+            }
             Invalidate();
         }
 
@@ -258,6 +274,7 @@ namespace Unity.VersionControl.Git
         public void ResetInvalidation()
         {
             isInvalidating = false;
+            refreshPending = false;
         }
 
         protected void SaveData(DateTimeOffset now, bool isChanged)
@@ -268,13 +285,26 @@ namespace Unity.VersionControl.Git
             InitializedAt = !isInitialized || InitializedAt == DateTimeOffset.MinValue ? now : InitializedAt;
             LastUpdatedAt = isChanged || LastUpdatedAt == DateTimeOffset.MinValue ? now : LastUpdatedAt;
 
-            Save(true);
+            // Serializing the whole cache (every status entry, the whole log) runs on the main thread,
+            // so skip it when nothing changed and write binary, which is much cheaper than YAML text.
+            // A stale timestamp on disk only costs one extra refresh after a domain reload.
+            if (isChanged)
+                Save(false);
 
             isInvalidating = false;
+            // a forced invalidation guarantees one update event; once delivered, go back to
+            // comparing data, otherwise every later refresh counts as a change and rebuilds the UI
+            forcedInvalidation = false;
 
             if (isChanged)
             {
                 CacheUpdated.SafeInvoke(CacheType, now);
+            }
+
+            if (refreshPending)
+            {
+                refreshPending = false;
+                Invalidate();
             }
         }
 

@@ -513,6 +513,7 @@
 .gfu-history-row__summary { font-size: 12.5px; color: var(--gfu-text-strong); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gfu-history-row__meta { font-size: 11px; color: var(--gfu-dim); margin-top: 2px; }
 .gfu-history-row > .gfu-hint { margin-left: 8px; }
+.gfu-history-row--more { justify-content: center; }
 
 .gfu-avatar { color: #141414; -unity-font-style: bold; -unity-text-align: middle-center; flex-shrink: 0; padding: 0; margin: 0; }
 

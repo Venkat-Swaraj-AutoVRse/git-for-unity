@@ -36,6 +36,8 @@ namespace Unity.VersionControl.Git.UI
 
         private readonly List<HistoryItem> items = new List<HistoryItem>();
         private GitLogEntry? selected;
+        // set while a "Load more" request is in flight, so the row can't be clicked twice
+        private bool loadingMore;
 
         public HistoryPanel(GitWindow window)
         {
@@ -154,6 +156,11 @@ namespace Unity.VersionControl.Git.UI
                 items.Add(new HistoryItem { Entry = entry, NotPushed = Session.HasRemote && i < ahead });
             }
 
+            // Search only covers what's loaded, so keep offering older commits while filtering too.
+            loadingMore = false;
+            if (Session.Repository?.HasMoreLog ?? false)
+                items.Add(new HistoryItem { IsLoadMore = true });
+
             list.RefreshItems();
             var hasLog = log.Count > 0;
             split.style.display = hasLog ? DisplayStyle.Flex : DisplayStyle.None;
@@ -167,6 +174,16 @@ namespace Unity.VersionControl.Git.UI
             }
         }
 
+        private void LoadMore()
+        {
+            var repo = Session.Repository;
+            if (repo == null || loadingMore)
+                return;
+            loadingMore = true;
+            list.RefreshItems();
+            repo.LoadMoreLog();
+        }
+
         private static bool Matches(GitLogEntry entry, string filter)
         {
             bool Has(string s) => !string.IsNullOrEmpty(s) && s.IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0;
@@ -176,10 +193,10 @@ namespace Unity.VersionControl.Git.UI
 
         private VisualElement MakeRow()
         {
-            var row = new HistoryRow();
+            var row = new HistoryRow(LoadMore);
             row.AddManipulator(new ContextualMenuManipulator(evt =>
             {
-                if (!(row.userData is HistoryItem item) || item.IsHeader)
+                if (!(row.userData is HistoryItem item) || item.IsHeader || item.IsLoadMore)
                     return;
                 var e = item.Entry;
                 evt.menu.AppendAction("Copy commit ID", _ => EditorGUIUtility.systemCopyBuffer = e.CommitID);
@@ -201,6 +218,8 @@ namespace Unity.VersionControl.Git.UI
             row.userData = item;
             if (item.IsHeader)
                 row.BindHeader(item.Day);
+            else if (item.IsLoadMore)
+                row.BindLoadMore(ApplicationConfiguration.HistoryPageSize, loadingMore);
             else
                 row.BindCommit(item.Entry, item.NotPushed, IsMe(item.Entry));
         }
@@ -216,7 +235,7 @@ namespace Unity.VersionControl.Git.UI
             var item = selection.OfType<HistoryItem>().FirstOrDefault();
             if (item == null)
                 return;
-            if (item.IsHeader)
+            if (item.IsHeader || item.IsLoadMore)
             {
                 list.ClearSelection();
                 return;
@@ -342,6 +361,7 @@ namespace Unity.VersionControl.Git.UI
         private class HistoryItem
         {
             public bool IsHeader;
+            public bool IsLoadMore;
             public string Day;
             public GitLogEntry Entry;
             public bool NotPushed;
@@ -356,8 +376,9 @@ namespace Unity.VersionControl.Git.UI
             private readonly Label meta;
             private readonly Label notPushed;
             private readonly Label files;
+            private readonly Button loadMore;
 
-            public HistoryRow()
+            public HistoryRow(Action onLoadMore)
             {
                 AddToClassList("gfu-history-row");
                 day = GitUi.Text(string.Empty, "gfu-section-label gfu-history-row__day");
@@ -375,21 +396,42 @@ namespace Unity.VersionControl.Git.UI
                 Add(notPushed);
                 files = GitUi.Text(string.Empty, "gfu-hint");
                 Add(files);
+                // real text so the helper creates its label; Button.text would draw behind the icon
+                loadMore = GitUi.Button("Load older commits", onLoadMore, "secondary", "chevron-down");
+                loadMore.AddToClassList("gfu-history-row__more");
+                Add(loadMore);
+            }
+
+            private void ShowOnly(params VisualElement[] visible)
+            {
+                foreach (var child in new VisualElement[] { day, avatar, text, notPushed, files, loadMore })
+                    child.style.display = Array.IndexOf(visible, child) >= 0 ? DisplayStyle.Flex : DisplayStyle.None;
+            }
+
+            public void BindLoadMore(int pageSize, bool loading)
+            {
+                EnableInClassList("gfu-history-row--header", false);
+                EnableInClassList("gfu-history-row--more", true);
+                ShowOnly(loadMore);
+                GitUi.SetButtonText(loadMore, loading ? "Loading…" : "Load " + GitUi.Plural(pageSize, "older commit"));
+                loadMore.SetEnabled(!loading);
+                tooltip = "Page size can be changed in Settings > Display.";
             }
 
             public void BindHeader(string label)
             {
                 EnableInClassList("gfu-history-row--header", true);
+                EnableInClassList("gfu-history-row--more", false);
                 day.text = label.ToUpperInvariant();
-                day.style.display = DisplayStyle.Flex;
-                avatar.style.display = text.style.display = notPushed.style.display = files.style.display = DisplayStyle.None;
+                ShowOnly(day);
+                tooltip = null;
             }
 
             public void BindCommit(GitLogEntry e, bool isNotPushed, bool isMe)
             {
                 EnableInClassList("gfu-history-row--header", false);
-                day.style.display = DisplayStyle.None;
-                avatar.style.display = text.style.display = files.style.display = DisplayStyle.Flex;
+                EnableInClassList("gfu-history-row--more", false);
+                ShowOnly(avatar, text, files);
                 GitUi.SetAvatar(avatar, e.AuthorName);
                 summary.text = string.IsNullOrEmpty(e.Summary) ? "(no summary)" : e.Summary;
                 meta.text = (isMe ? "You" : e.AuthorName) + " · " + e.Time.ToLocalTime().ToString("HH:mm");

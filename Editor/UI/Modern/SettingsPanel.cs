@@ -29,6 +29,7 @@ namespace Unity.VersionControl.Git.UI
         private readonly Toggle projectIcons;
         private readonly Toggle hierarchyIcons;
         private readonly Toggle autoFetch;
+        private readonly IntegerField historyPageSize;
         private readonly TextField remoteNameField;
         private readonly TextField remoteUrlField;
         private readonly Button saveRemote;
@@ -113,6 +114,13 @@ namespace Unity.VersionControl.Git.UI
             });
             autoFetch = SwitchRow(display, "Check GitHub for team updates every few minutes", EditorPrefs.GetBool(GitSession.AutoFetchPrefKey, true),
                 value => EditorPrefs.SetBool(GitSession.AutoFetchPrefKey, value));
+            historyPageSize = IntRow(display, "Commits to load in History at a time", ApplicationConfiguration.HistoryPageSize, value =>
+            {
+                ApplicationConfiguration.HistoryPageSize = value; // 0 falls back to the default
+                historyPageSize.SetValueWithoutNotify(ApplicationConfiguration.HistoryPageSize);
+                Session.Manager?.UserSettings.Set(Constants.HistoryPageSizeKey, ApplicationConfiguration.HistoryPageSize);
+                Session.Repository?.ResetLogLimit();
+            });
 
             // Advanced
             var advanced = new Foldout { text = "Advanced", value = false };
@@ -182,6 +190,7 @@ namespace Unity.VersionControl.Git.UI
             projectIcons.SetValueWithoutNotify(ApplicationConfiguration.ProjectIconsEnabled);
             hierarchyIcons.SetValueWithoutNotify(ApplicationConfiguration.HierarchyIconsEnabled);
             autoFetch.SetValueWithoutNotify(EditorPrefs.GetBool(GitSession.AutoFetchPrefKey, true));
+            historyPageSize.SetValueWithoutNotify(ApplicationConfiguration.HistoryPageSize);
             gitTimeout.SetValueWithoutNotify(ApplicationConfiguration.GitTimeout);
             webTimeout.SetValueWithoutNotify(ApplicationConfiguration.WebTimeout);
             traceLogging.SetValueWithoutNotify(LogHelper.TracingEnabled);

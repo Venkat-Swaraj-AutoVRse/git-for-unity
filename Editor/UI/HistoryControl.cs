@@ -32,7 +32,8 @@ namespace Unity.VersionControl.Git
         }
 
         public bool Render(Rect containingRect, bool viewHasFocus, Action<GitLogEntry> singleClick = null,
-            Action<GitLogEntry> doubleClick = null, Action<GitLogEntry> rightClick = null)
+            Action<GitLogEntry> doubleClick = null, Action<GitLogEntry> rightClick = null,
+            string loadMoreLabel = null, Action loadMore = null)
         {
             var requiresRepaint = false;
             scroll = GUILayout.BeginScrollView(scroll);
@@ -75,6 +76,10 @@ namespace Unity.VersionControl.Git
                 }
 
                 GUILayout.Space(rect.y - containingRect.y);
+
+                // after the last entry, so it scrolls with the list
+                if (loadMore != null && GUILayout.Button(loadMoreLabel))
+                    loadMore();
             }
             GUILayout.EndScrollView();
 

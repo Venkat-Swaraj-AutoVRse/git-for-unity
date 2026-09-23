@@ -35,6 +35,7 @@ namespace Unity.VersionControl.Git.UI
         private const string UISceneHierarchySettingsTitle = "UI - Scene Hierarchy";
         private const string UIProjectViewSettingsTitle = "UI - Project Window";
         private const string IconsEnabledToggleLabel = "Show Git Status Icons";
+        private const string HistoryPageSizeLabel = "Commits to load in History at a time";
         private const string HierarchyIconsIndentToggleLabel = "Align to end of label";
         private const string HierarchyIconsIndentToggleTooltip = "You probably don't want this";
         private static GUIContent hierarchyIconsIndentToggleContent;
@@ -706,6 +707,15 @@ namespace Unity.VersionControl.Git.UI
                 {
                     EditorApplication.RepaintProjectWindow();
                 }
+
+                Controls.DoControl(ApplicationConfiguration.HistoryPageSize,
+                    value => EditorGUILayout.DelayedIntField(HistoryPageSizeLabel, value),
+                    value =>
+                    {
+                        ApplicationConfiguration.HistoryPageSize = value; // 0 falls back to the default
+                        Manager.UserSettings.Set(Constants.HistoryPageSizeKey, ApplicationConfiguration.HistoryPageSize);
+                        Repository?.ResetLogLimit();
+                    });
             });
         }
 

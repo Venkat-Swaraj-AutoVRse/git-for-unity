@@ -20,6 +20,10 @@ namespace Unity.VersionControl.Git.UI
         protected abstract ChangesTree TreeChanges { get; set; }
         protected abstract Vector2 DetailsScroll { get; set; }
 
+        /// <summary>Whether to offer loading older commits under the list.</summary>
+        protected virtual bool CanLoadMore => false;
+        protected virtual void LoadMore() { }
+
         protected void BuildHistoryControl(int loadAhead, List<GitLogEntry> gitLogEntries)
         {
             if (HistoryControl == null)
@@ -95,7 +99,9 @@ namespace Unity.VersionControl.Git.UI
                     doubleClick: entry => {
 
                     },
-                    rightClick: historyControlRightClick);
+                    rightClick: historyControlRightClick,
+                    loadMoreLabel: "Load " + ApplicationConfiguration.HistoryPageSize + " older commits",
+                    loadMore: CanLoadMore ? (Action)LoadMore : null);
 
                 if (requiresRepaint)
                     Redraw();
@@ -312,6 +318,13 @@ namespace Unity.VersionControl.Git.UI
 
                 BuildHistoryControl(statusAhead, logEntries);
             }
+        }
+
+        protected override bool CanLoadMore => Repository?.HasMoreLog ?? false;
+
+        protected override void LoadMore()
+        {
+            Repository?.LoadMoreLog();
         }
 
         public override void OnGUI()
