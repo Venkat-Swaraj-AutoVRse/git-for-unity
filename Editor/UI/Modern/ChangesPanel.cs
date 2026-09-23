@@ -101,11 +101,23 @@ namespace Unity.VersionControl.Git.UI
 
             list = new ListView(items, RowHeight, MakeRow, BindRow)
             {
-                selectionType = SelectionType.Single,
+                // Ctrl/Cmd-click and Shift-click are handled by the ListView itself
+                selectionType = SelectionType.Multiple,
                 virtualizationMethod = CollectionVirtualizationMethod.FixedHeight,
             };
             list.AddToClassList("gfu-list");
             list.selectionChanged += OnSelectionChanged;
+            list.RegisterCallback<KeyDownEvent>(evt =>
+            {
+                // Space checks/unchecks every selected file, like clicking one of their checkboxes
+                if (evt.keyCode != KeyCode.Space)
+                    return;
+                var picked = SelectedEntries();
+                if (picked.Length == 0)
+                    return;
+                SetIncluded(picked, !picked.All(IsIncluded));
+                evt.StopPropagation();
+            });
             list.itemsChosen += OnItemsChosen;
             listArea.Add(list);
             Root.Add(listArea);
@@ -238,6 +250,8 @@ namespace Unity.VersionControl.Git.UI
 
         private void RebuildItems()
         {
+            // rows move when the list is rebuilt, so remember the selection by file, not index
+            var selectedKeys = new HashSet<string>(SelectedEntries().Select(e => e.Key));
             items.Clear();
             var filter = search.value?.Trim();
             var filtered = string.IsNullOrEmpty(filter)
@@ -267,6 +281,8 @@ namespace Unity.VersionControl.Git.UI
                 foreach (var e in g.Items)
                     items.Add(new ChangeItem { Entry = e, GroupKey = g.Key, Kind = e.Kind });
             }
+            list.SetSelectionWithoutNotify(Enumerable.Range(0, items.Count)
+                .Where(i => !items[i].IsHeader && selectedKeys.Contains(items[i].Entry.Key)));
             list.RefreshItems();
             UpdateSelectionSummary();
         }
@@ -340,7 +356,9 @@ namespace Unity.VersionControl.Git.UI
                 }
                 else
                 {
-                    SetIncluded(item.Entry, evt.newValue);
+                    // ticking a checkbox on one of several selected rows applies to all of them
+                    foreach (var e in TargetsFor(item.Entry))
+                        SetIncluded(e, evt.newValue);
                 }
                 list.RefreshItems();
                 UpdateSelectionSummary();
@@ -371,7 +389,7 @@ namespace Unity.VersionControl.Git.UI
             row.AddManipulator(new ContextualMenuManipulator(evt =>
             {
                 if (row.userData is ChangeItem item && item.Entry != null)
-                    BuildContextMenu(evt.menu, item.Entry);
+                    BuildContextMenu(evt.menu, item.Entry, TargetsFor(item.Entry));
             }));
             return row;
         }
@@ -400,8 +418,40 @@ namespace Unity.VersionControl.Git.UI
             }
 
             var e = item.Entry;
-            var canLock = Session.HasRemote && !e.LockedByOther && e.Status != GitFileStatus.Added && e.Status != GitFileStatus.Untracked && !e.SettingsOnly && e.Kind != AssetKind.Folder;
-            row.BindFile(e, IsIncluded(e), AssetKinds.Icon(e.ProjectPath, e.Kind), canLock);
+            row.BindFile(e, IsIncluded(e), AssetKinds.Icon(e.ProjectPath, e.Kind), CanLock(e));
+        }
+
+        private bool CanLock(ChangeEntry e)
+        {
+            return Session.HasRemote && !e.LockedByOther && e.Status != GitFileStatus.Added && e.Status != GitFileStatus.Untracked && !e.SettingsOnly && e.Kind != AssetKind.Folder;
+        }
+
+        /// <summary>The files (not group headers) currently selected in the list, in list order.</summary>
+        private ChangeEntry[] SelectedEntries()
+        {
+            return list.selectedIndices
+                .Where(i => i >= 0 && i < items.Count && !items[i].IsHeader)
+                .OrderBy(i => i)
+                .Select(i => items[i].Entry)
+                .ToArray();
+        }
+
+        /// <summary>
+        /// What an action on <paramref name="clicked"/> should apply to: the whole selection when the
+        /// row is part of it, otherwise just that row.
+        /// </summary>
+        private ChangeEntry[] TargetsFor(ChangeEntry clicked)
+        {
+            var picked = SelectedEntries();
+            return picked.Contains(clicked) ? picked : new[] { clicked };
+        }
+
+        private void SetIncluded(IEnumerable<ChangeEntry> targets, bool value)
+        {
+            foreach (var e in targets)
+                SetIncluded(e, value);
+            list.RefreshItems();
+            UpdateSelectionSummary();
         }
 
         private void ToggleGroup(string key)
@@ -413,15 +463,27 @@ namespace Unity.VersionControl.Git.UI
 
         private void OnSelectionChanged(IEnumerable<object> selection)
         {
-            var item = selection.OfType<ChangeItem>().FirstOrDefault();
-            if (item == null)
-                return;
-            if (item.IsHeader)
+            var picked = list.selectedIndices.Where(i => i >= 0 && i < items.Count).ToList();
+            var files = picked.Where(i => !items[i].IsHeader).ToList();
+            if (files.Count != picked.Count)
             {
-                list.ClearSelection();
-                return;
+                // headers only expand/collapse their group; drop them from the selection
+                if (files.Count == 0)
+                {
+                    list.ClearSelection();
+                    return;
+                }
+                list.SetSelectionWithoutNotify(files);
             }
-            GitUi.Select(item.Entry.ProjectPath);
+
+            var objects = files
+                .Select(i => items[i].Entry.ProjectPath)
+                .Where(p => !string.IsNullOrEmpty(p))
+                .Select(AssetDatabase.LoadMainAssetAtPath)
+                .Where(o => o != null)
+                .ToArray();
+            if (objects.Length > 0)
+                Selection.objects = objects;
         }
 
         private void OnItemsChosen(IEnumerable<object> chosen)
@@ -434,8 +496,14 @@ namespace Unity.VersionControl.Git.UI
                 AssetDatabase.OpenAsset(obj);
         }
 
-        private void BuildContextMenu(DropdownMenu menu, ChangeEntry e)
+        private void BuildContextMenu(DropdownMenu menu, ChangeEntry e, ChangeEntry[] targets)
         {
+            if (targets.Length > 1)
+            {
+                BuildMultiContextMenu(menu, targets);
+                return;
+            }
+
             var exists = e.ProjectPath != null && AssetDatabase.LoadMainAssetAtPath(e.ProjectPath) != null;
             menu.AppendAction("Show in Project", _ => GitUi.Ping(e.ProjectPath), exists ? DropdownMenuAction.Status.Normal : DropdownMenuAction.Status.Disabled);
             menu.AppendAction("Open", _ => OnItemsChosen(new object[] { new ChangeItem { Entry = e } }), exists ? DropdownMenuAction.Status.Normal : DropdownMenuAction.Status.Disabled);
@@ -451,6 +519,63 @@ namespace Unity.VersionControl.Git.UI
             {
                 var full = System.IO.Path.Combine(Session.RepositoryPath ?? string.Empty, e.Key);
                 EditorUtility.RevealInFinder(System.IO.File.Exists(full) || System.IO.Directory.Exists(full) ? full : System.IO.Path.GetDirectoryName(full));
+            });
+        }
+
+        private void BuildMultiContextMenu(DropdownMenu menu, ChangeEntry[] targets)
+        {
+            var what = GitUi.Plural(targets.Length, "file");
+            var enabled = DropdownMenuAction.Status.Normal;
+            var disabled = DropdownMenuAction.Status.Disabled;
+
+            menu.AppendAction("Include " + what + " in the commit", _ => SetIncluded(targets, true),
+                targets.All(IsIncluded) ? disabled : enabled);
+            menu.AppendAction("Leave " + what + " out of the commit", _ => SetIncluded(targets, false),
+                targets.Any(IsIncluded) ? enabled : disabled);
+            menu.AppendSeparator();
+
+            var lockable = targets.Where(t => CanLock(t) && !t.LockedByMe).ToArray();
+            var mine = targets.Where(t => t.LockedByMe).ToArray();
+            menu.AppendAction(lockable.Length > 0 ? "Lock " + GitUi.Plural(lockable.Length, "file") + " so nobody else edits them" : "Lock so nobody else edits them",
+                _ => SetLocks(lockable, true), lockable.Length > 0 ? enabled : disabled);
+            if (mine.Length > 0)
+                menu.AppendAction("Unlock " + GitUi.Plural(mine.Length, "file"), _ => SetLocks(mine, false));
+            menu.AppendAction("Undo my changes to " + what + "…", _ => Undo(targets));
+            menu.AppendSeparator();
+            menu.AppendAction("Copy paths", _ => EditorGUIUtility.systemCopyBuffer = string.Join("\n", targets.Select(t => t.Key)));
+        }
+
+        /// <summary>
+        /// Locks or unlocks several files as one operation (the window runs one git operation at a
+        /// time), stopping at the first failure.
+        /// </summary>
+        private void SetLocks(ChangeEntry[] targets, bool lockThem)
+        {
+            var repo = Session.Repository;
+            if (repo == null || targets.Length == 0)
+                return;
+            if (targets.Length == 1)
+            {
+                ToggleLock(targets[0]);
+                return;
+            }
+
+            ITask chain = null;
+            foreach (var t in targets)
+            {
+                var path = t.Key.ToSPath();
+                var next = lockThem ? repo.RequestLock(path) : repo.ReleaseLock(path, false);
+                chain = chain == null ? next : chain.Then(next);
+            }
+
+            var what = GitUi.Plural(targets.Length, "file");
+            Session.Run((lockThem ? "Locking " : "Unlocking ") + what + "…", chain, (ok, ex) =>
+            {
+                if (ok)
+                    window.ShowToast((lockThem ? "Locked " : "Unlocked ") + what + ".", "good");
+                else
+                    window.ShowToast("Couldn't " + (lockThem ? "lock" : "unlock") + " all of them: " + GitSession.FriendlyError(ex), "error");
+                Session.RefreshLocks();
             });
         }
 
