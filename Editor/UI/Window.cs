@@ -7,11 +7,15 @@ using UnityEngine;
 
 namespace Unity.VersionControl.Git.UI
 {
+    /// <summary>
+    /// The original IMGUI Git window. Superseded by <see cref="GitWindow"/> (UI Toolkit) and kept
+    /// available from Window › Git › Legacy Window while the new UI reaches feature parity.
+    /// </summary>
     [Serializable]
     class Window : BaseWindow
     {
         private const float DefaultNotificationTimeout = 2f;
-        private const string Title = "Git for Unity";
+        private const string Title = "Git (Legacy)";
 
         [NonSerialized] private Spinner spinner;
         [NonSerialized] private IProgress repositoryProgress;
