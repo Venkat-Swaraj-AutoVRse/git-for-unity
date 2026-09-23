@@ -565,7 +565,7 @@ namespace Unity.VersionControl.Git.UI
                 change.DisplayName = Path.GetFileName(key);
                 var dir = Path.GetDirectoryName(key);
                 change.Directory = string.IsNullOrEmpty(dir) ? string.Empty : GitSession.Normalize(dir);
-                change.ProjectPath = session.ToProjectPath(key);
+                change.ProjectPath = session.ToAssetPath(key);
 
                 var isFolder = false;
                 if (!string.IsNullOrEmpty(repoPath))

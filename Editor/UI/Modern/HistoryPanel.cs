@@ -305,7 +305,7 @@ namespace Unity.VersionControl.Git.UI
         {
             var path = GitSession.Normalize(change.Path);
             var kind = AssetKinds.Classify(path);
-            var projectPath = Session.ToProjectPath(path);
+            var projectPath = Session.ToAssetPath(path);
             var row = GitUi.Row("gfu-file-row");
             var img = new Image { image = AssetKinds.Icon(projectPath, kind), scaleMode = ScaleMode.ScaleToFit };
             img.AddToClassList("gfu-change-row__icon");

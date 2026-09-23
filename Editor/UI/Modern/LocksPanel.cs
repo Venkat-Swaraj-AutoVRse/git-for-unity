@@ -159,7 +159,7 @@ namespace Unity.VersionControl.Git.UI
         {
             var path = GitSession.Normalize(l.Path.ToString());
             var kind = AssetKinds.Classify(path);
-            var projectPath = Session.ToProjectPath(path);
+            var projectPath = Session.ToAssetPath(path);
             var row = GitUi.Row("gfu-lock-row");
             var img = new Image { image = AssetKinds.Icon(projectPath, kind), scaleMode = ScaleMode.ScaleToFit };
             img.AddToClassList("gfu-lock-row__icon");
@@ -210,7 +210,7 @@ namespace Unity.VersionControl.Git.UI
             who.Add(GitUi.Text((string.IsNullOrEmpty(l.Owner.Name) ? "Someone" : l.Owner.Name) + (string.IsNullOrEmpty(since) ? string.Empty : " · " + since), "gfu-lock-row__sub"));
             text.Add(who);
             var path = GitSession.Normalize(l.Path.ToString());
-            var projectPath = Session.ToProjectPath(path);
+            var projectPath = Session.ToAssetPath(path);
             Button more = null;
             more = GitUi.Button(null, () =>
             {

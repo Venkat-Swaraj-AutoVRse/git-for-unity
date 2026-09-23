@@ -241,6 +241,43 @@ namespace Unity.VersionControl.Git.UI
             return null;
         }
 
+        /// <summary>
+        /// Like <see cref="ToProjectPath"/>, but returns the path the AssetDatabase knows the file by.
+        /// Unity addresses package assets by package name (Packages/com.company.name/...), not by
+        /// the folder the package sits in, so files of a repository that is a package only load,
+        /// select and show icons through this path.
+        /// </summary>
+        public string ToAssetPath(string repositoryRelativePath)
+        {
+            var projectRelative = ToProjectPath(repositoryRelativePath);
+            if (projectRelative == null || !projectRelative.StartsWith("Packages/", StringComparison.OrdinalIgnoreCase))
+                return projectRelative;
+            try
+            {
+                var full = Normalize(System.IO.Path.GetFullPath(System.IO.Path.Combine(ProjectPath, projectRelative)));
+                foreach (var package in RegisteredPackages())
+                {
+                    if (string.IsNullOrEmpty(package.resolvedPath) || string.IsNullOrEmpty(package.assetPath))
+                        continue;
+                    var root = Normalize(System.IO.Path.GetFullPath(package.resolvedPath)).TrimEnd('/') + "/";
+                    if (full.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+                        return package.assetPath + "/" + full.Substring(root.Length);
+                }
+            }
+            catch (Exception)
+            {
+            }
+            return projectRelative;
+        }
+
+        // Adding or removing a package reloads the domain, which clears this.
+        private static UnityEditor.PackageManager.PackageInfo[] registeredPackages;
+
+        private static UnityEditor.PackageManager.PackageInfo[] RegisteredPackages()
+        {
+            return registeredPackages ?? (registeredPackages = UnityEditor.PackageManager.PackageInfo.GetAllRegisteredPackages());
+        }
+
         public string ToRepositoryPath(string projectRelativePath)
         {
             var repoPath = RepositoryPath;
