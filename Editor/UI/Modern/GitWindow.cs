@@ -56,14 +56,14 @@ namespace Unity.VersionControl.Git.UI
         [NonSerialized] private List<RepositoryEntry> discoveredRepositories;
         [NonSerialized] private bool getLatestAfterCommit;
 
-        public GitSession Session => session;
+        public GitSession Session => session ?? (session = new GitSession());
         public bool GetLatestAfterCommit => getLatestAfterCommit;
 
         public static GitWindow ShowWindow()
         {
             var inspector = typeof(EditorWindow).Assembly.GetType("UnityEditor.InspectorWindow");
             var window = GetWindow<GitWindow>(inspector);
-            window.titleContent = new GUIContent(Title, Styles.SmallLogo);
+            window.titleContent = new GUIContent(Title, TabIcon());
             window.minSize = new Vector2(360, 420);
             window.Show();
             return window;
@@ -71,10 +71,27 @@ namespace Unity.VersionControl.Git.UI
 
         private void OnEnable()
         {
-            titleContent = new GUIContent(Title, Styles.SmallLogo);
-            if (session == null)
-                session = new GitSession();
-            session.Changed += OnSessionChanged;
+            // The session must exist before anything else can fail: every panel reads it.
+            Session.Changed -= OnSessionChanged;
+            Session.Changed += OnSessionChanged;
+            titleContent = new GUIContent(Title, TabIcon());
+            ticker?.Resume();
+        }
+
+        /// <summary>
+        /// The tab icon. Styles.SmallLogo picks its variant through GUI.skin, which throws outside
+        /// OnGUI (OnEnable runs after every script reload), so choose the variant from the editor skin.
+        /// </summary>
+        private static Texture2D TabIcon()
+        {
+            try
+            {
+                return Utility.GetIcon(EditorGUIUtility.isProSkin ? "small-logo-light" : "small-logo");
+            }
+            catch (Exception)
+            {
+                return null;
+            }
         }
 
         private void OnDisable()
@@ -128,14 +145,15 @@ namespace Unity.VersionControl.Git.UI
             root.RegisterCallback<KeyDownEvent>(OnKeyDown, TrickleDown.TrickleDown);
 
             ApplyTab();
-            session.MarkDirty(GitDataKind.All);
-            session.Tick();
+            UpdateHeader();
+            Session.MarkDirty(GitDataKind.All);
+            Session.Tick();
             ticker = root.schedule.Execute(OnTick).Every(200);
         }
 
         private void OnTick()
         {
-            session.Tick();
+            Session.Tick();
             UpdateSyncButton();
         }
 
@@ -218,32 +236,32 @@ namespace Unity.VersionControl.Git.UI
 
         private void UpdateHeader()
         {
-            var hasRepo = session.HasRepository;
+            var hasRepo = Session.HasRepository;
             repoView.style.display = hasRepo ? DisplayStyle.Flex : DisplayStyle.None;
             emptyView.style.display = hasRepo ? DisplayStyle.None : DisplayStyle.Flex;
             if (!hasRepo)
                 return;
 
-            var repoPath = session.RepositoryPath ?? string.Empty;
-            var projectPath = session.ProjectPath ?? string.Empty;
+            var repoPath = Session.RepositoryPath ?? string.Empty;
+            var projectPath = Session.ProjectPath ?? string.Empty;
             var isProject = string.Equals(GitSession.Normalize(repoPath).TrimEnd('/'), GitSession.Normalize(projectPath).TrimEnd('/'), StringComparison.OrdinalIgnoreCase);
             var folder = Path.GetFileName(repoPath.TrimEnd('/', '\\'));
             repoTitle.text = Prettify(folder);
 
-            var owner = RemoteOwner(session.RemoteUrl);
+            var owner = RemoteOwner(Session.RemoteUrl);
             var where = isProject ? "Project" : "Package";
             if (!isProject)
             {
-                var rel = session.ToProjectPath(".") ?? string.Empty;
+                var rel = Session.ToProjectPath(".") ?? string.Empty;
                 if (!string.IsNullOrEmpty(rel) && rel != ".")
                     where = "Package · " + rel.TrimEnd('/', '.');
             }
-            repoSubtitle.text = owner != null ? where + " · " + owner + " on GitHub" : session.HasRemote ? where : where + " · not on GitHub yet";
+            repoSubtitle.text = owner != null ? where + " · " + owner + " on GitHub" : Session.HasRemote ? where : where + " · not on GitHub yet";
 
-            branchLabel.text = string.IsNullOrEmpty(session.BranchName) ? "—" : session.BranchName;
+            branchLabel.text = string.IsNullOrEmpty(Session.BranchName) ? "—" : Session.BranchName;
 
             tabButtons[GitTab.Changes].SetCount(changesPanel.Count);
-            tabButtons[GitTab.Locks].SetCount(session.Locks.Count);
+            tabButtons[GitTab.Locks].SetCount(Session.Locks.Count);
         }
 
         private static string Prettify(string folder)
@@ -270,40 +288,40 @@ namespace Unity.VersionControl.Git.UI
 
         private void UpdateSyncButton()
         {
-            if (syncButton == null || !session.HasRepository)
+            if (syncButton == null || !Session.HasRepository)
                 return;
 
-            if (session.IsOperationRunning)
+            if (Session.IsOperationRunning)
             {
-                var detail = session.OperationDetail;
-                var percent = session.OperationProgress;
-                var label = session.OperationLabel;
-                if (!session.OperationIsBackground && percent > 0.01f && percent < 0.999f)
+                var detail = Session.OperationDetail;
+                var percent = Session.OperationProgress;
+                var label = Session.OperationLabel;
+                if (!Session.OperationIsBackground && percent > 0.01f && percent < 0.999f)
                     label = label.TrimEnd('…') + "…  " + Mathf.RoundToInt(percent * 100) + "%";
                 syncButton.Set(SyncButton.Tone.Busy, "sync", label, string.IsNullOrEmpty(detail) ? "Working with GitHub" : detail, percent);
                 currentSyncAction = SyncAction.None;
                 return;
             }
 
-            if (!string.IsNullOrEmpty(session.LastError))
+            if (!string.IsNullOrEmpty(Session.LastError))
             {
-                syncButton.Set(SyncButton.Tone.Error, "offline", "Sync problem", session.LastError + " Click to retry.");
+                syncButton.Set(SyncButton.Tone.Error, "offline", "Sync problem", Session.LastError + " Click to retry.");
                 currentSyncAction = SyncAction.Fetch;
                 return;
             }
 
-            if (!session.HasRemote)
+            if (!Session.HasRemote)
             {
                 syncButton.Set(SyncButton.Tone.Secondary, "offline", "Not on GitHub", "Add a GitHub address in Settings");
                 currentSyncAction = SyncAction.Settings;
                 return;
             }
 
-            var ahead = session.Ahead;
-            var behind = session.Behind;
-            if (!session.IsTracking && !string.IsNullOrEmpty(session.BranchName))
+            var ahead = Session.Ahead;
+            var behind = Session.Behind;
+            if (!Session.IsTracking && !string.IsNullOrEmpty(Session.BranchName))
             {
-                syncButton.Set(SyncButton.Tone.Primary, "upload", "Publish branch", "Share " + session.BranchName + " with the team");
+                syncButton.Set(SyncButton.Tone.Primary, "upload", "Publish branch", "Share " + Session.BranchName + " with the team");
                 currentSyncAction = SyncAction.Push;
             }
             else if (behind > 0 && ahead > 0)
@@ -323,7 +341,7 @@ namespace Unity.VersionControl.Git.UI
             }
             else
             {
-                var ago = GitUi.Ago(session.LastChecked);
+                var ago = GitUi.Ago(Session.LastChecked);
                 syncButton.Set(SyncButton.Tone.Secondary, "check", "Up to date", ago != null ? "Checked for updates " + ago : "Click to check for updates");
                 currentSyncAction = SyncAction.Fetch;
             }
@@ -334,10 +352,10 @@ namespace Unity.VersionControl.Git.UI
             switch (currentSyncAction)
             {
                 case SyncAction.Fetch:
-                    session.ClearError();
-                    session.Fetch(false, (ok, ex) =>
+                    Session.ClearError();
+                    Session.Fetch(false, (ok, ex) =>
                     {
-                        if (ok && session.Behind == 0)
+                        if (ok && Session.Behind == 0)
                             ShowToast("You're up to date.", "good");
                     });
                     break;
@@ -359,13 +377,13 @@ namespace Unity.VersionControl.Git.UI
         /// <summary>Gets the team's work. Uncommitted changes must be committed first so nothing is overwritten.</summary>
         public void GetLatest(bool pushAfterwards)
         {
-            if (!session.HasRepository || !session.HasRemote)
+            if (!Session.HasRepository || !Session.HasRemote)
                 return;
 
             var uncommitted = changesPanel.Count;
             if (uncommitted > 0)
             {
-                var updates = session.Behind > 0 ? "the " + GitUi.Plural(session.Behind, "update") : "the latest";
+                var updates = Session.Behind > 0 ? "the " + GitUi.Plural(Session.Behind, "update") : "the latest";
                 var commitFirst = EditorUtility.DisplayDialog(
                     "Commit your work before getting the latest",
                     "You have " + GitUi.Plural(uncommitted, "uncommitted change") + ". Commit them first to keep them safe, and we'll get " + updates + " from your team straight after.",
@@ -389,7 +407,7 @@ namespace Unity.VersionControl.Git.UI
             if (!getLatestAfterCommit)
                 return;
             getLatestAfterCommit = false;
-            if (success && session.HasRemote)
+            if (success && Session.HasRemote)
                 RunGetLatest(true);
         }
 
@@ -401,17 +419,17 @@ namespace Unity.VersionControl.Git.UI
 
         private void RunGetLatest(bool pushAfterwards)
         {
-            var behind = session.Behind;
-            var started = session.Run("Getting latest…", session.Repository.Pull(), (ok, ex) =>
+            var behind = Session.Behind;
+            var started = Session.Run("Getting latest…", Session.Repository.Pull(), (ok, ex) =>
             {
                 if (ok)
                 {
                     AssetDatabase.Refresh();
                     ShowToast(behind > 0 ? "Got " + GitUi.Plural(behind, "update") + " from your team." : "You have the latest from your team.", "good");
-                    if (pushAfterwards && (session.Ahead > 0 || !session.IsTracking))
+                    if (pushAfterwards && (Session.Ahead > 0 || !Session.IsTracking))
                         Push();
                     else if (pushAfterwards)
-                        session.Repository.Refresh(CacheType.GitAheadBehind);
+                        Session.Repository.Refresh(CacheType.GitAheadBehind);
                 }
                 else
                 {
@@ -424,10 +442,10 @@ namespace Unity.VersionControl.Git.UI
 
         public void Push()
         {
-            if (!session.HasRepository || !session.HasRemote)
+            if (!Session.HasRepository || !Session.HasRemote)
                 return;
-            var ahead = session.Ahead;
-            var started = session.Run("Pushing to the team…", session.Repository.Push(), (ok, ex) =>
+            var ahead = Session.Ahead;
+            var started = Session.Run("Pushing to the team…", Session.Repository.Push(), (ok, ex) =>
             {
                 if (ok)
                     ShowToast(ahead > 0 ? "Pushed " + GitUi.Plural(ahead, "commit") + " to the team." : "Your branch is now on GitHub.", "good");
@@ -440,7 +458,7 @@ namespace Unity.VersionControl.Git.UI
 
         public void RefreshAll()
         {
-            session.Refresh();
+            Session.Refresh();
             ShowToast("Refreshing…", "info");
         }
 
@@ -505,12 +523,12 @@ namespace Unity.VersionControl.Git.UI
 
         public void ShowRepositoryMenu()
         {
-            var projectPath = session.ProjectPath;
+            var projectPath = Session.ProjectPath;
             if (discoveredRepositories == null && !string.IsNullOrEmpty(projectPath))
                 discoveredRepositories = RepositorySelector.Scan(projectPath);
 
             var menu = new GenericMenu();
-            var current = GitSession.Normalize(session.RepositoryPath ?? string.Empty).TrimEnd('/');
+            var current = GitSession.Normalize(Session.RepositoryPath ?? string.Empty).TrimEnd('/');
             var selected = EnvironmentCache.Instance.SelectedRepositoryPath;
 
             menu.AddItem(new GUIContent("Automatic (the project's repository)"), string.IsNullOrEmpty(selected), () => SwitchRepository(null));
