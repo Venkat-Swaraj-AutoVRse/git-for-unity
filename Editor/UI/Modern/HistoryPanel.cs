@@ -38,6 +38,8 @@ namespace Unity.VersionControl.Git.UI
         private GitLogEntry? selected;
         // set while a "Load more" request is in flight, so the row can't be clicked twice
         private bool loadingMore;
+        // whether the split currently has its details pane collapsed
+        private bool detailsCollapsed;
 
         public HistoryPanel(GitWindow window)
         {
@@ -78,6 +80,8 @@ namespace Unity.VersionControl.Git.UI
             details = GitUi.Column("gfu-history__details");
             var detailScroll = new ScrollView(ScrollViewMode.Vertical);
             detailScroll.AddToClassList("gfu-history__details-scroll");
+            // text wraps and file rows ellipsize, so never offer sideways scrolling
+            detailScroll.horizontalScrollerVisibility = ScrollerVisibility.Hidden;
             detailSummary = GitUi.Text(string.Empty, "gfu-history__summary");
             detailBody = GitUi.Text(string.Empty, "gfu-history__body");
             detailMeta = GitUi.Text(string.Empty, "gfu-hint");
@@ -107,6 +111,10 @@ namespace Unity.VersionControl.Git.UI
             details.Add(detailScroll);
             split.Add(details);
             Root.Add(split);
+            // CollapseChild is ignored until the split has laid out its panes, so collapse again
+            // after the first layout. Once only: UnCollapse resets the pane size, and this event
+            // also fires on every resize and drag.
+            split.RegisterCallback<GeometryChangedEvent>(OnFirstSplitLayout);
 
             emptyState = GitUi.Column("gfu-empty");
             emptyState.Add(new GitIcon("history", 32));
@@ -246,7 +254,7 @@ namespace Unity.VersionControl.Git.UI
         private void ShowDetails(GitLogEntry? entry)
         {
             selected = entry;
-            details.style.display = entry.HasValue ? DisplayStyle.Flex : DisplayStyle.None;
+            ApplyDetailsCollapsed(!entry.HasValue);
             detailFiles.Clear();
             if (!entry.HasValue)
                 return;
@@ -268,6 +276,29 @@ namespace Unity.VersionControl.Git.UI
                 detailFiles.Add(FileRow(e, change));
             if (assets.Count > maxShown)
                 detailFiles.Add(GitUi.Text("+ " + (assets.Count - maxShown) + " more", "gfu-hint"));
+        }
+
+        /// <summary>
+        /// Collapses the details pane through the split view itself when nothing is selected.
+        /// Only hiding the pane's content left the split's drag line in place 220px up, cutting
+        /// the list off at an empty, draggable divider.
+        /// </summary>
+        private void OnFirstSplitLayout(GeometryChangedEvent evt)
+        {
+            split.UnregisterCallback<GeometryChangedEvent>(OnFirstSplitLayout);
+            if (detailsCollapsed)
+                split.CollapseChild(1);
+        }
+
+        private void ApplyDetailsCollapsed(bool collapse)
+        {
+            if (collapse == detailsCollapsed)
+                return;
+            detailsCollapsed = collapse;
+            if (collapse)
+                split.CollapseChild(1);
+            else
+                split.UnCollapse();
         }
 
         private VisualElement FileRow(GitLogEntry commit, GitStatusEntry change)
