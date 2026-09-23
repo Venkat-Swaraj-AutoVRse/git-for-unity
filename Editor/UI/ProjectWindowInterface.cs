@@ -320,13 +320,22 @@ namespace Unity.VersionControl.Git.UI
 
         private static void OnStatusUpdate()
         {
+            // rebuild from scratch so files that are no longer changed lose their icon
+            guids.Clear();
             for (var index = 0; index < entries.Count; ++index)
             {
-                var guid = AssetDatabase.AssetPathToGUID(entries[index].ProjectPath);
-                guids[guid] = index;
+                var projectPath = entries[index].ProjectPath;
+                if (string.IsNullOrEmpty(projectPath))
+                    continue;
+
+                var guid = AssetDatabase.AssetPathToGUID(projectPath);
+                if (!string.IsNullOrEmpty(guid))
+                    guids[guid] = index;
             }
 
-            AssetDatabase.Refresh();
+            // only the icons changed; a full AssetDatabase.Refresh() here blocks the editor and
+            // can write .meta files that the watcher reports back as a change, triggering another status
+            EditorApplication.RepaintProjectWindow();
         }
 
         private static void OnProjectWindowItemGUI(string guid, Rect itemRect)

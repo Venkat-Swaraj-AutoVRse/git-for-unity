@@ -76,7 +76,7 @@
 .gfu-content { flex-grow: 1; }
 .gfu-panel { flex-grow: 1; }
 
-.gfu-icon { color: var(--gfu-text); --gfu-stroke: 1.4; }
+.gfu-icon { color: var(--gfu-text); --gfu-icon: 1; }
 .gfu-icon--good { color: var(--gfu-good); }
 .gfu-icon--warn { color: var(--gfu-warn); }
 .gfu-icon--bad { color: var(--gfu-bad); }
