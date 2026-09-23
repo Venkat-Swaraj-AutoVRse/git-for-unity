@@ -422,7 +422,7 @@
 .gfu-change-row__count { font-size: 11px; color: var(--gfu-faint); margin-left: 6px; }
 .gfu-change-row__size { font-size: 11px; color: var(--gfu-faint); margin-left: 8px; flex-shrink: 0; }
 
-.gfu-change-row--header .gfu-change-row__name { font-size: 11px; -unity-font-style: bold; color: var(--gfu-dim); letter-spacing: 0.5px; }
+.gfu-change-row--header .gfu-change-row__name { font-size: 11px; -unity-font-style: bold; color: var(--gfu-dim); overflow: visible; text-overflow: clip; }
 .gfu-change-row--header .gfu-change-row__icon { width: 14px; height: 14px; margin-right: 6px; }
 .gfu-change-row--excluded .gfu-change-row__name { color: var(--gfu-dim); }
 .gfu-change-row--locked-other { opacity: 0.6; }

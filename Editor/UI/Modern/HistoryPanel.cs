@@ -390,7 +390,7 @@ namespace Unity.VersionControl.Git.UI
                 EnableInClassList("gfu-history-row--header", false);
                 day.style.display = DisplayStyle.None;
                 avatar.style.display = text.style.display = files.style.display = DisplayStyle.Flex;
-                GitUi.SetAvatar(avatar, isMe ? "You" : e.AuthorName);
+                GitUi.SetAvatar(avatar, e.AuthorName);
                 summary.text = string.IsNullOrEmpty(e.Summary) ? "(no summary)" : e.Summary;
                 meta.text = (isMe ? "You" : e.AuthorName) + " · " + e.Time.ToLocalTime().ToString("HH:mm");
                 notPushed.style.display = isNotPushed ? DisplayStyle.Flex : DisplayStyle.None;
