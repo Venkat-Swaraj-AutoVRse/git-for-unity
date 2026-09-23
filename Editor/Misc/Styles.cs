@@ -1094,6 +1094,12 @@ namespace Unity.VersionControl.Git.UI
                     //activeTreeNode.name = "Custom Active TreeNode";
 
                     activeTreeNode.fontStyle = FontStyle.Bold;
+
+                    // Tint the active (checked-out) branch label so it reads as clearly current,
+                    // not just bold. Paired with the row highlight drawn in TreeNode.Render.
+                    var activeColor = new Color(0.62f, 0.80f, 1f);
+                    activeTreeNode.normal.textColor = activeColor;
+                    activeTreeNode.onNormal.textColor = activeColor;
                 }
 
                 return activeTreeNode;

@@ -79,6 +79,7 @@ namespace Unity.VersionControl.Git.UI
 
         [SerializeField] private bool repositorySettingsHidden;
         [SerializeField] private bool repositorySelectionHidden;
+        [SerializeField] private bool preCommitSettingsHidden;
         [SerializeField] private bool generalSettingsHidden;
         [SerializeField] private bool debugSettingsHidden;
         [SerializeField] private bool uiSceneSettingsHidden;
@@ -151,6 +152,7 @@ namespace Unity.VersionControl.Git.UI
                 }
 
                 gitPathView.OnGUI();
+                OnPreCommitSettingsGui();
                 OnGeneralSettingsGui();
                 OnLoggingSettingsGui();
                 OnUISettingsGui();
@@ -571,6 +573,35 @@ namespace Unity.VersionControl.Git.UI
                         LogHelper.TracingEnabled = value;
                         Manager.UserSettings.Set(Constants.TraceLoggingKey, value);
                     });
+            });
+        }
+
+        private void OnPreCommitSettingsGui()
+        {
+            preCommitSettingsHidden = !Controls.FoldoutScope(!preCommitSettingsHidden, "Pre-commit Checks", () =>
+            {
+                var discovered = PreCommit.PreCommitCheckRunner.DiscoverChecks();
+                EditorGUILayout.LabelField($"{discovered.Count} check(s) discovered", EditorStyles.miniLabel);
+
+                var current = PreCommit.PreCommitCheckRunner.OverrideBlocks;
+                var updated = EditorGUILayout.ToggleLeft(
+                    new GUIContent("Override hard blocks",
+                        "When enabled, checks that would normally BLOCK a commit are downgraded to warnings you can commit past. Use with care."),
+                    current);
+                if (updated != current)
+                    PreCommit.PreCommitCheckRunner.OverrideBlocks = updated;
+
+                if (updated)
+                {
+                    EditorGUILayout.HelpBox(
+                        "Hard-block checks are being overridden — blocking issues will only warn. Turn this off to enforce them.",
+                        MessageType.Warning);
+                }
+
+                if (GUILayout.Button("Rescan checks", GUILayout.ExpandWidth(false)))
+                {
+                    PreCommit.PreCommitCheckRunner.ClearCache();
+                }
             });
         }
 

@@ -469,6 +469,20 @@ namespace Unity.VersionControl.Git
             if (Event.current.type == EventType.Repaint)
             {
                 contentStyle.Draw(fillRect, GUIContent.none, false, false, false, isSelected);
+
+                // Highlight the currently checked-out branch so it stands out from the rest of
+                // the tree (bold text alone is too easy to miss). Draw a tinted background fill
+                // plus a coloured accent bar down the left edge of the row.
+                if (IsActive && !IsFolderOrContainer)
+                {
+                    var highlight = EditorGUIUtility.isProSkin
+                        ? new Color(0.24f, 0.48f, 0.90f, 0.28f)
+                        : new Color(0.20f, 0.45f, 0.90f, 0.22f);
+                    var accent = new Color(0.30f, 0.60f, 1f, 0.95f);
+
+                    EditorGUI.DrawRect(fillRect, highlight);
+                    EditorGUI.DrawRect(new Rect(fillRect.x, fillRect.y, 3f, fillRect.height), accent);
+                }
             }
 
             var styleOn = false;
