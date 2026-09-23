@@ -347,7 +347,12 @@ namespace Unity.VersionControl.Git.UI
                         System.IO.Path.GetFullPath(repoPath).TrimEnd('/', '\\'),
                         StringComparison.OrdinalIgnoreCase);
 
-                menu.AddItem(new GUIContent(entry.DisplayName), isSelected, () => SelectRepository(repoPath));
+                // GenericMenu treats '/' as a submenu separator, which turned the relative
+                // paths into nested menus. Swap it for a visually similar divider so every repo
+                // shows as a single flat entry.
+                var label = entry.DisplayName.Replace('/', '\u2215'); // U+2215 DIVISION SLASH
+
+                menu.AddItem(new GUIContent(label), isSelected, () => SelectRepository(repoPath));
             }
 
             menu.ShowAsContext();
