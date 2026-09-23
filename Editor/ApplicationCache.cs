@@ -121,6 +121,14 @@ namespace Unity.VersionControl.Git
         [SerializeField] private string extensionInstallPath;
         [SerializeField] private string repositoryPath;
 
+        // User-selected repository override. When set (and pointing at a valid git repo),
+        // this is used instead of auto-discovering the .git folder by walking up from the
+        // project path. This is what allows selecting a repo nested inside the project
+        // (e.g. a repo checked out under Assets/ or Packages/).
+        [SerializeField] private string selectedRepositoryPath;
+
+        public string SelectedRepositoryPath => selectedRepositoryPath;
+
         public void Flush()
         {
             unityApplication = Environment.UnityApplication;
@@ -128,6 +136,24 @@ namespace Unity.VersionControl.Git
             unityVersion = Environment.UnityVersion;
             repositoryPath = Environment.RepositoryPath;
             extensionInstallPath = Environment.ExtensionInstallPath;
+            Save(true);
+        }
+
+        /// <summary>
+        /// Persist a user-selected repository path and drop the cached environment so it is
+        /// re-resolved against the new path on next access. Pass null/empty to clear the
+        /// override and go back to auto-discovery. Callers should follow this with
+        /// <see cref="EntryPoint.Restart"/> so the application manager and UI pick up the change.
+        /// </summary>
+        public void SetSelectedRepository(string path)
+        {
+            selectedRepositoryPath = string.IsNullOrEmpty(path) ? null : path;
+            // The repositoryPath cache is only meaningful for the auto-discovered repo, so
+            // clear it whenever the override changes to avoid it shadowing the new selection.
+            repositoryPath = null;
+            // Force the environment to be rebuilt so InitializeRepository runs again with the
+            // new path the next time Environment is accessed.
+            environment = null;
             Save(true);
         }
 
@@ -170,7 +196,11 @@ namespace Unity.VersionControl.Git
 
                     environment.Initialize(extensionInstallPath.ToSPath(), projectPath, unityVersion, unityApplication, unityApplicationContents);
                     SPath? path = null;
-                    if (!String.IsNullOrEmpty(repositoryPath))
+                    // A user-selected repository (which may be nested inside the project) wins over
+                    // both the cached auto-discovered path and auto-discovery itself.
+                    if (!String.IsNullOrEmpty(selectedRepositoryPath))
+                        path = selectedRepositoryPath.ToSPath();
+                    else if (!String.IsNullOrEmpty(repositoryPath))
                         path = repositoryPath.ToSPath();
                     environment.InitializeRepository(path);
                     Flush();
