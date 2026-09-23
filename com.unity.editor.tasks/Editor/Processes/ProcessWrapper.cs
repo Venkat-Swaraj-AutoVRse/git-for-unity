@@ -59,6 +59,12 @@ namespace Unity.Editor.Tasks
 		private DateTimeOffset lastOutput;
 		private Exception thrownException;
 		private AutoResetEvent gotOutput;
+		// set when the async readers hit end-of-stream (e.Data == null), so we know all output is in
+		// without having to wait for a period of silence
+		private volatile bool outputClosed;
+		private volatile bool errorClosed;
+
+		private bool StreamsClosed => outputClosed && errorClosed;
 
 		public ProcessWrapper(string taskName, ProcessStartInfo startInfo,
 			IOutputProcessor outputProcessor,
@@ -86,6 +92,8 @@ namespace Unity.Editor.Tasks
 			lastOutput = DateTimeOffset.UtcNow;
 			thrownException = null;
 			gotOutput = new AutoResetEvent(false);
+			outputClosed = !StartInfo.RedirectStandardOutput;
+			errorClosed = !StartInfo.RedirectStandardError;
 
 			if (StartInfo.RedirectStandardError)
 				Process.ErrorDataReceived += OnErrorDataReceived;
@@ -122,8 +130,8 @@ namespace Unity.Editor.Tasks
 						var exited = WaitForExit(500);
 						if (exited)
 						{
-							// process is done and we haven't seen output, we're done
-							while (gotOutput.WaitOne(100)) { }
+							// process is done; drain any remaining output
+							WaitForStreamsClosed();
 						}
 						else if (cts.IsCancellationRequested)
 						// if we're exiting
@@ -203,8 +211,7 @@ namespace Unity.Editor.Tasks
 		{
 			try
 			{
-				while (!cts.IsCancellationRequested && gotOutput.WaitOne(100))
-				{ }
+				WaitForStreamsClosed();
 				HasExited = true;
 				stopEvent.Set();
 			}
@@ -224,12 +231,11 @@ namespace Unity.Editor.Tasks
 				//}
 
 				lastOutput = DateTimeOffset.UtcNow;
-				gotOutput.Set();
 				if (e.Data != null)
-				{
-					var line = Encoding.UTF8.GetString(Encoding.UTF8.GetBytes(e.Data));
-					errors.Add(line.TrimEnd('\r', '\n'));
-				}
+					errors.Add(e.Data.TrimEnd('\r', '\n'));
+				else
+					errorClosed = true;
+				gotOutput.Set();
 			}
 			catch (Exception ex)
 			{
@@ -242,11 +248,9 @@ namespace Unity.Editor.Tasks
 			try
 			{
 				lastOutput = DateTimeOffset.UtcNow;
-				gotOutput.Set();
 				if (e.Data != null)
 				{
-					var line = Encoding.UTF8.GetString(Encoding.UTF8.GetBytes(e.Data)).TrimEnd('\r', '\n');
-					outputProcessor.Process(line);
+					outputProcessor.Process(e.Data.TrimEnd('\r', '\n'));
 				}
 				else
 				{
@@ -257,6 +261,25 @@ namespace Unity.Editor.Tasks
 			{
 				errors.Add(ex.GetExceptionMessageShort());
 			}
+			finally
+			{
+				// flag and signal only after the processor has seen the line, so a waiter never
+				// returns before the last line has been handled
+				if (e.Data == null)
+					outputClosed = true;
+				gotOutput.Set();
+			}
+		}
+
+		/// <summary>
+		/// Returns as soon as both redirected streams have reported end-of-stream. Falls back to
+		/// returning after 100ms without output, in case a child process (credential helper, ssh)
+		/// inherited the pipe and keeps it open after git itself has exited.
+		/// </summary>
+		private void WaitForStreamsClosed()
+		{
+			while (!StreamsClosed && !cts.IsCancellationRequested && gotOutput.WaitOne(100))
+			{ }
 		}
 
 		public override void Stop(bool dontWait = false)
@@ -352,8 +375,16 @@ namespace Unity.Editor.Tasks
 				}
 				catch { }
 
-				data.input?.Dispose();
-				data.process.Dispose();
+				try
+				{
+					data.input?.Dispose();
+					data.process.Dispose();
+				}
+				finally
+				{
+					// without this the caller always sat out the full 200ms timeout below
+					data.done.Set();
+				}
 
 			}, new CleanupData { done = done, input = wrapper.Input, process = wrapper.Process, startInfo = wrapper.StartInfo });
 			done.Wait(200);

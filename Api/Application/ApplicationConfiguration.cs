@@ -4,6 +4,7 @@ namespace Unity.VersionControl.Git
     {
         public const int DefaultWebTimeout = 100*1000;
         public const int DefaultGitTimeout = 5000;
+        public const int DefaultHistoryPageSize = 15;
         public static int WebTimeout { get; set; } = DefaultWebTimeout;
         public static int GitTimeout { get; set; } = DefaultGitTimeout;
         public static bool HierarchyIconsEnabled { get; set; } = false;
@@ -12,6 +13,16 @@ namespace Unity.VersionControl.Git
         public static int HierarchyIconsOffsetLeft { get; set; } = 0;
         public static HierarchyIconAlignment HierarchyIconsAlignment { get; set; } = HierarchyIconAlignment.Right;
         public static bool ProjectIconsEnabled { get; set; } = true;
+
+        private static int historyPageSize = DefaultHistoryPageSize;
+        /// <summary>
+        /// How many commits History loads at first, and how many more each "Load more" adds.
+        /// </summary>
+        public static int HistoryPageSize
+        {
+            get { return historyPageSize; }
+            set { historyPageSize = value > 0 ? value : DefaultHistoryPageSize; }
+        }
 
         public static void Initialize(ISettings settings)
         {
@@ -23,6 +34,7 @@ namespace Unity.VersionControl.Git
             HierarchyIconsOffsetLeft = settings.Get(Constants.HierarchyIconsOffsetLeftKey, HierarchyIconsOffsetLeft);
             HierarchyIconsAlignment = (HierarchyIconAlignment) settings.Get(Constants.HierarchyIconsAlignmentKey, (int)HierarchyIconsAlignment);
             ProjectIconsEnabled = settings.Get(Constants.ProjectIconsEnabledKey, ProjectIconsEnabled);
+            HistoryPageSize = settings.Get(Constants.HistoryPageSizeKey, HistoryPageSize);
         }
 
         public enum HierarchyIconAlignment

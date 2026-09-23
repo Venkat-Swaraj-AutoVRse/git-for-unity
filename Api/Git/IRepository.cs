@@ -64,6 +64,23 @@ namespace Unity.VersionControl.Git
         List<GitLock> CurrentLocks { get; }
         string CurrentBranchName { get; }
         List<GitLogEntry> CurrentLog { get; }
+        /// <summary>
+        /// How many commits <see cref="CurrentLog"/> is loaded up to: pages loaded so far times
+        /// <see cref="ApplicationConfiguration.HistoryPageSize"/>.
+        /// </summary>
+        int LogLimit { get; }
+        /// <summary>
+        /// True when the loaded log filled <see cref="LogLimit"/>, so there may be older commits to load.
+        /// </summary>
+        bool HasMoreLog { get; }
+        /// <summary>
+        /// Loads one more page of older commits into <see cref="CurrentLog"/>.
+        /// </summary>
+        void LoadMoreLog();
+        /// <summary>
+        /// Goes back to loading just the first page of commits.
+        /// </summary>
+        void ResetLogLimit();
         bool IsBusy { get; }
         string CurrentHead { get; }
         GitFileLog CurrentFileLog { get; }

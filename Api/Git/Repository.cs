@@ -30,6 +30,7 @@ namespace Unity.VersionControl.Git
         private Dictionary<CacheType, Action<CacheUpdateEvent>> cacheUpdateEvents;
         private ProgressReporter progressReporter = new ProgressReporter();
         private string lastFileLog;
+        private int logPages = 1;
 
         public event Action<CacheUpdateEvent> LogChanged;
         public event Action<CacheUpdateEvent> FileLogChanged;
@@ -198,13 +199,19 @@ namespace Unity.VersionControl.Git
 
         private void RefreshCache(CacheType cacheType)
         {
-            taskManager.RunInUI(() => Refresh(cacheType));
+            // file watcher driven: don't force, so unchanged results don't rebuild the UI
+            taskManager.RunInUI(() => Refresh(cacheType, false));
         }
 
         public void Refresh(CacheType cacheType)
         {
+            Refresh(cacheType, true);
+        }
+
+        private void Refresh(CacheType cacheType, bool force)
+        {
             var cache = cacheContainer.GetCache(cacheType);
-            cache.InvalidateData();
+            cache.InvalidateData(force);
 
             // take the opportunity to possibly refresh the locks cache, if it has timed out
             if (cacheType != CacheType.GitLocks)
@@ -278,7 +285,7 @@ namespace Unity.VersionControl.Git
                     break;
 
                 case CacheType.GitLog:
-                    repositoryManager?.UpdateGitLog().Catch(ex => InvalidationFailed(ex, cacheType)).Start();
+                    repositoryManager?.UpdateGitLog(LogLimit).Catch(ex => InvalidationFailed(ex, cacheType)).Start();
                     break;
 
                 case CacheType.GitFileLog:
@@ -435,6 +442,22 @@ namespace Unity.VersionControl.Git
         public string CurrentBranchName => CurrentConfigBranch?.Name;
         public GitRemote? CurrentRemote => cacheContainer.RepositoryInfoCache.CurrentGitRemote;
         public List<GitLogEntry> CurrentLog => cacheContainer.GitLogCache.Log;
+
+        public int LogLimit => logPages * ApplicationConfiguration.HistoryPageSize;
+
+        public bool HasMoreLog => (CurrentLog?.Count ?? 0) >= LogLimit;
+
+        public void LoadMoreLog()
+        {
+            logPages++;
+            Refresh(CacheType.GitLog);
+        }
+
+        public void ResetLogLimit()
+        {
+            logPages = 1;
+            Refresh(CacheType.GitLog);
+        }
         public GitFileLog CurrentFileLog => cacheContainer.GitFileLogCache.FileLog;
         public List<GitLock> CurrentLocks => cacheContainer.GitLocksCache.GitLocks;
         public string CurrentHead => cacheContainer.RepositoryInfoCache.CurrentHead;

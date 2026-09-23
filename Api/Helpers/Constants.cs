@@ -14,6 +14,7 @@ namespace Unity.VersionControl.Git
         public const string HierarchyIconsOffsetLeftKey = "HierarchyIconsOffsetLeft";
         public const string HierarchyIconsAlignmentKey = "HierarchyIconsAlignment";
         public const string ProjectIconsEnabledKey = "ProjectIconsEnabled";
+        public const string HistoryPageSizeKey = "HistoryPageSize";
         public const string Iso8601Format = @"yyyy-MM-dd\THH\:mm\:ss.fffzzz";
         public const string Iso8601FormatZ = @"yyyy-MM-dd\THH\:mm\:ss\Z";
         public static readonly string[] Iso8601Formats = {

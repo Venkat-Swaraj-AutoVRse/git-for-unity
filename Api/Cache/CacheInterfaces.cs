@@ -42,6 +42,12 @@ namespace Unity.VersionControl.Git
 
         bool ValidateData();
         void InvalidateData();
+        /// <summary>
+        /// Like <see cref="InvalidateData()"/>, but <paramref name="force"/> = false only raises
+        /// CacheUpdated if the refreshed data differs, and folds requests made while a refresh is
+        /// already running into a single follow-up refresh.
+        /// </summary>
+        void InvalidateData(bool force);
         void ResetInvalidation();
 
         DateTimeOffset LastUpdatedAt { get; }

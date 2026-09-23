@@ -43,6 +43,7 @@ namespace Unity.VersionControl.Git
         ITask DiscardChanges(GitStatusEntry[] gitStatusEntries);
         ITask CheckoutVersion(string changeset, IList<string> files);
         ITask UpdateGitLog();
+        ITask UpdateGitLog(int numberOfCommits);
         ITask UpdateGitStatus();
         ITask UpdateGitAheadBehindStatus();
         ITask UpdateLocks();
@@ -364,7 +365,12 @@ namespace Unity.VersionControl.Git
 
         public ITask UpdateGitLog()
         {
-            var task = GitClient.Log()
+            return UpdateGitLog(0);
+        }
+
+        public ITask UpdateGitLog(int numberOfCommits)
+        {
+            var task = GitClient.Log(numberOfCommits)
                 .Then(logEntries =>
                 {
                     GitLogUpdated?.Invoke(logEntries);

@@ -256,6 +256,13 @@ namespace Unity.VersionControl.Git
         ITask<List<GitLogEntry>> Log();
 
         /// <summary>
+        /// Executes `git log -n <paramref name="numberOfCommits"/>` to get the most recent commits of the current branch.
+        /// </summary>
+        /// <param name="numberOfCommits">How many commits to read; 0 or less reads the whole history.</param>
+        /// <returns><see cref="List&lt;T&gt;"/> of <see cref="GitLogEntry"/> output</returns>
+        ITask<List<GitLogEntry>> Log(int numberOfCommits);
+
+        /// <summary>
         /// Executes `git log -- <file>` to get the history of a specific file.
         /// </summary>
         /// <param name="file"></param>
@@ -342,7 +349,13 @@ namespace Unity.VersionControl.Git
         ///<inheritdoc/>
         public ITask<List<GitLogEntry>> Log()
         {
-            return new GitLogTask(platform, new GitObjectFactory(platform.Environment), token: Token)
+            return Log(0);
+        }
+
+        ///<inheritdoc/>
+        public ITask<List<GitLogEntry>> Log(int numberOfCommits)
+        {
+            return new GitLogTask(platform, new GitObjectFactory(platform.Environment), numberOfCommits: Math.Max(0, numberOfCommits), token: Token)
                 .Configure(platform.ProcessManager)
                 .Catch(exception => exception is ProcessException &&
                     exception.Message.StartsWith("fatal: your current branch") &&
