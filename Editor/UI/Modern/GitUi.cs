@@ -144,10 +144,43 @@ namespace Unity.VersionControl.Git.UI
             f.AddToClassList("gfu-field");
             if (multiline)
                 f.AddToClassList("gfu-field--multiline");
+#if UNITY_2023_1_OR_NEWER
             f.textEdition.placeholder = placeholder;
             f.textEdition.hidePlaceholderOnFocus = true;
+#else
+            AddPlaceholder(f, placeholder);
+#endif
             return f;
         }
+
+#if !UNITY_2023_1_OR_NEWER
+        /// <summary>
+        /// TextField placeholders only exist from Unity 2023.1, so older editors get a hint label
+        /// laid over the input, hidden while the field has focus or any text.
+        /// </summary>
+        private static void AddPlaceholder(TextField field, string placeholder)
+        {
+            if (string.IsNullOrEmpty(placeholder))
+                return;
+            var input = field.Q(className: TextField.inputUssClassName);
+            if (input == null)
+                return;
+
+            var hint = new Label(placeholder) { pickingMode = PickingMode.Ignore };
+            hint.AddToClassList("gfu-field__placeholder");
+            input.Add(hint);
+
+            var focused = false;
+            void Update() => hint.style.display = !focused && string.IsNullOrEmpty(field.value) ? DisplayStyle.Flex : DisplayStyle.None;
+
+            field.RegisterValueChangedCallback(_ => Update());
+            field.RegisterCallback<FocusInEvent>(_ => { focused = true; Update(); });
+            field.RegisterCallback<FocusOutEvent>(_ => { focused = false; Update(); });
+            // SetValueWithoutNotify raises no event, so also catch values set from code
+            field.schedule.Execute(Update).Every(250);
+            Update();
+        }
+#endif
 
         public static VisualElement Avatar(string name, int size = 22)
         {

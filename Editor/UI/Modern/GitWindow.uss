@@ -176,6 +176,22 @@
 }
 
 .gfu-root .gfu-field:focus > .unity-base-text-field__input { border-color: var(--gfu-primary-border); }
+/* placeholder fallback for Unity versions before 2023.1 (see GitUi.AddPlaceholder) */
+.gfu-root .gfu-field__placeholder {
+    position: absolute;
+    left: 8px;
+    right: 8px;
+    top: 0;
+    bottom: 0;
+    margin: 0;
+    padding: 0;
+    color: var(--gfu-faint);
+    -unity-text-align: middle-left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.gfu-root .gfu-field--multiline .gfu-field__placeholder { -unity-text-align: upper-left; top: 6px; white-space: normal; }
 .gfu-root .gfu-field--multiline > .unity-base-text-field__input { min-height: 44px; -unity-text-align: upper-left; padding-top: 6px; white-space: normal; }
 .gfu-root .gfu-search > .unity-base-text-field__input { padding-left: 8px; }
 
