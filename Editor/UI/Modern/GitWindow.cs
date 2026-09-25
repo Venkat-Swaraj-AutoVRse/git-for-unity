@@ -25,7 +25,7 @@ namespace Unity.VersionControl.Git.UI
     class GitWindow : EditorWindow
     {
         private const string Title = "Git";
-        private const string StyleSheetPath = "Packages/com.spoiledcat.git.ui/Editor/UI/Modern/GitWindow.uss";
+        private static string StyleSheetPath => GitUi.PackageRoot + "/Editor/UI/Modern/GitWindow.uss";
 
         [SerializeField] private GitTab activeTab = GitTab.Changes;
         [SerializeField] private GitTab tabBeforeSettings = GitTab.Changes;

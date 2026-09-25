@@ -13,7 +13,7 @@ namespace Unity.VersionControl.Git.UI
     class GitIcon : VisualElement
     {
         public const string UssClassName = "gfu-icon";
-        private const string IconFolder = "Packages/com.spoiledcat.git.ui/Editor/UI/Modern/Icons/";
+        private static string IconFolder => GitUi.PackageRoot + "/Editor/UI/Modern/Icons/";
 
         private static readonly Dictionary<string, Texture2D> Cache = new Dictionary<string, Texture2D>();
 
@@ -59,11 +59,15 @@ namespace Unity.VersionControl.Git.UI
         {
             if (string.IsNullOrEmpty(name))
                 return null;
-            if (Cache.TryGetValue(name, out var texture) && texture != null)
+            // a cached null means "known missing": warn once, not for every row that asks
+            if (Cache.TryGetValue(name, out var texture) && (texture != null || ReferenceEquals(texture, null)))
                 return texture;
             texture = AssetDatabase.LoadAssetAtPath<Texture2D>(IconFolder + name + ".png");
             if (texture == null)
+            {
                 Debug.LogWarning("[Git] Missing icon '" + name + "' in " + IconFolder);
+                texture = null;
+            }
             Cache[name] = texture;
             return texture;
         }

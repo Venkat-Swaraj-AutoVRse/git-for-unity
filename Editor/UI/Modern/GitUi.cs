@@ -12,6 +12,32 @@ namespace Unity.VersionControl.Git.UI
     /// <summary>Small factory helpers so the panels read as layout rather than plumbing.</summary>
     static class GitUi
     {
+        private static string packageRoot;
+
+        /// <summary>
+        /// Asset path of this package's root (e.g. "Packages/com.ruthless.unitygit.ui"), looked up from
+        /// the assembly instead of hardcoded, so renaming or embedding the package keeps the
+        /// window's stylesheet and icons loading.
+        /// </summary>
+        public static string PackageRoot => packageRoot ?? (packageRoot = FindPackageRoot());
+
+        private static string FindPackageRoot()
+        {
+            var info = UnityEditor.PackageManager.PackageInfo.FindForAssembly(typeof(GitUi).Assembly);
+            if (info != null && !string.IsNullOrEmpty(info.assetPath))
+                return info.assetPath;
+
+            // not installed as a package (e.g. copied under Assets/): find the stylesheet next to this code
+            const string modernFolder = "/Editor/UI/Modern/GitWindow.uss";
+            foreach (var guid in AssetDatabase.FindAssets("GitWindow t:StyleSheet"))
+            {
+                var path = AssetDatabase.GUIDToAssetPath(guid);
+                if (path.EndsWith(modernFolder, StringComparison.OrdinalIgnoreCase))
+                    return path.Substring(0, path.Length - modernFolder.Length);
+            }
+            return "Packages/com.ruthless.unitygit.ui";
+        }
+
         public static VisualElement Row(string className = null, params VisualElement[] children)
         {
             var e = new VisualElement();
