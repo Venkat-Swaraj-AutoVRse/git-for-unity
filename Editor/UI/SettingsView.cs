@@ -373,40 +373,8 @@ namespace Unity.VersionControl.Git.UI
                 switchProgress = 0f;
                 isBusy = true;
 
-                EnvironmentCache.Instance.SetSelectedRepository(path);
-
-                // Rebuild the application manager and environment against the newly selected
-                // repository. After this, EntryPoint.ApplicationManager lazily recreates itself
-                // bound to the freshly-resolved environment.
-                EntryPoint.Restart();
-
-                // The per-repo info caches (branch, remote, status, log, locks) are shared
-                // singletons persisted under Library/gfu with long timeouts, so after a switch
-                // they still hold the PREVIOUS repository's data. Invalidate them once so the
-                // new repository re-queries git.
-                var env = EntryPoint.ApplicationManager.Environment;
-                env.CacheContainer.InvalidateAll();
-
-                // Re-bind the whole window (header + active view) to the new repository. This
-                // re-attaches the change-event handlers so the header repaints when the git
-                // query completes.
+                RepositorySwitcher.Switch(path);
                 discoveredRepositories = null;
-                var window = Window.GetWindow();
-                if (window != null)
-                    window.InitializeWindow(EntryPoint.ApplicationManager);
-
-                // Refresh only the fast, LOCAL caches needed for the header (branch + remote).
-                // Deliberately avoid GitLocks / fetch / ahead-behind here: those can hit the
-                // network and were a big part of the multi-second stall. They lazy-load when
-                // the user opens the relevant tab. This is one coordinated pass, so the
-                // progress bar no longer flickers several times.
-                var repository = EntryPoint.ApplicationManager.Environment.Repository;
-                if (repository != null)
-                {
-                    repository.Refresh(CacheType.RepositoryInfo);
-                    repository.Refresh(CacheType.Branches);
-                    repository.Refresh(CacheType.GitStatus);
-                }
             }
             catch (Exception ex)
             {
@@ -454,13 +422,10 @@ namespace Unity.VersionControl.Git.UI
                         StringComparison.OrdinalIgnoreCase);
             }
 
-            // Consider the switch complete once the environment points at the target repo and
-            // either the background git work has drained OR a short grace period has passed.
-            // The header only needs the (fast, local) RepositoryInfo query; a large repo's
-            // status/log can keep the manager "busy" much longer, so we don't wait on that —
-            // otherwise the overlay would linger for the full status scan.
-            var busy = (Manager != null && Manager.IsBusy) || (Repository != null && Repository.IsBusy);
-            if (targetReached && (!busy || elapsed > 2.0) && elapsed > 0.4)
+            // Background status and lock queries do not block the repository header.
+            var infoReady = Repository == null ||
+                env.CacheContainer.RepositoryInfoCache.LastUpdatedAt > DateTimeOffset.MinValue;
+            if (targetReached && (infoReady || elapsed > 2.0) && elapsed > 0.1)
             {
                 switchInProgress = false;
                 switchProgress = 1f;

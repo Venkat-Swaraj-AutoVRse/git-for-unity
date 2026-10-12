@@ -135,6 +135,7 @@ namespace Unity.VersionControl.Git.UI
 
             DetachHandlers(oldRepository);
             AttachHandlers(Repository);
+            var previousView = ActiveView;
 
             if (HasRepository)
             {
@@ -152,6 +153,9 @@ namespace Unity.VersionControl.Git.UI
                     UpdateActiveTab();
                 }
             }
+
+            if (!ReferenceEquals(oldRepository, Repository) && ActiveView == previousView)
+                ActiveView?.OnEnable();
         }
 
         public override void OnSelectionChange()

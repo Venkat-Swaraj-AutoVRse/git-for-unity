@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Unity.VersionControl.Git.IO;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -509,6 +510,10 @@ namespace Unity.VersionControl.Git.UI
                 discoveredRepositories = null;
                 getLatestAfterCommit = false;
                 branchPicker?.Close();
+                if (activeTab == GitTab.History)
+                    historyPanel.OnShow();
+                else if (activeTab == GitTab.Locks)
+                    locksPanel.OnShow();
             }
             changesPanel.Refresh(kind);
             historyPanel.Refresh(kind);
@@ -701,21 +706,16 @@ namespace Unity.VersionControl.Git.UI
     {
         public static void Switch(string path)
         {
-            EnvironmentCache.Instance.SetSelectedRepository(string.IsNullOrEmpty(path) ? null : path);
-
-            // Rebuild the application manager and environment against the new repository.
-            EntryPoint.Restart();
-
-            // Per-repository caches are shared singletons; invalidate them so the new repository
-            // is re-queried instead of showing the previous one's data.
-            var env = EntryPoint.ApplicationManager.Environment;
-            env.CacheContainer.InvalidateAll();
+            var manager = EntryPoint.ApplicationManager;
+            manager.SwitchRepository(string.IsNullOrEmpty(path) ? (SPath?)null : path.ToSPath());
+            EnvironmentCache.Instance.SetSelectedRepository(path);
+            EnvironmentCache.Instance.Flush();
 
             var legacy = Window.GetWindow();
             if (legacy != null)
-                legacy.InitializeWindow(EntryPoint.ApplicationManager);
+                legacy.Redraw();
 
-            var repository = env.Repository;
+            var repository = manager.Environment.Repository;
             if (repository != null)
             {
                 repository.Refresh(CacheType.RepositoryInfo);

@@ -16,6 +16,12 @@ namespace Unity.VersionControl.Git.UI
             EditorApplication.hierarchyWindowItemOnGUI += OnHierarchyItemTryToDrawStatusIcon;
         }
 
+        public static void ClearCache()
+        {
+            iconCache?.Clear();
+            EditorApplication.RepaintHierarchyWindow();
+        }
+
         private static void OnHierarchyItemTryToDrawStatusIcon(int instanceID, Rect selectionRect)
         {
             if (!ApplicationConfiguration.HierarchyIconsEnabled)

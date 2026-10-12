@@ -41,6 +41,15 @@ namespace Unity.VersionControl.Git
             SetProjectToTextSerialization();
         }
 
+        public override void SwitchRepository(IO.SPath? repositoryPath)
+        {
+            var previousRepository = Environment.Repository;
+            base.SwitchRepository(repositoryPath);
+            ProjectWindowInterface.RebindRepository(previousRepository);
+            LfsLocksModificationProcessor.RebindRepository();
+            HierarchyWindowInterface.ClearCache();
+        }
+
         protected void SetProjectToTextSerialization()
         {
             EditorSettings.serializationMode = SerializationMode.ForceText;

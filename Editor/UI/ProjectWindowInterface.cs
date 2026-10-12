@@ -54,6 +54,33 @@ namespace Unity.VersionControl.Git.UI
             }
         }
 
+        public static void RebindRepository(IRepository previousRepository)
+        {
+            if (previousRepository != null)
+            {
+                previousRepository.StatusEntriesChanged -= RepositoryOnStatusEntriesChanged;
+                previousRepository.LocksChanged -= RepositoryOnLocksChanged;
+                previousRepository.CurrentRemoteChanged -= RepositoryOnCurrentRemoteChanged;
+            }
+
+            entries.Clear();
+            locks.Clear();
+            guids.Clear();
+            guidsLocks.Clear();
+            lastRepositoryStatusChangedEvent = default(CacheUpdateEvent);
+            lastLocksChangedEvent = default(CacheUpdateEvent);
+            lastCurrentRemoteChangedEvent = default(CacheUpdateEvent);
+            UpdateCurrentUsername();
+
+            if (Repository != null)
+            {
+                Repository.StatusEntriesChanged += RepositoryOnStatusEntriesChanged;
+                Repository.LocksChanged += RepositoryOnLocksChanged;
+                Repository.CurrentRemoteChanged += RepositoryOnCurrentRemoteChanged;
+            }
+            EditorApplication.RepaintProjectWindow();
+        }
+
         public static Texture2D GetStatusIconForAssetGUID(string guid)
         {
             if (!guids.TryGetValue(guid, out int index))

@@ -39,6 +39,19 @@ namespace Unity.VersionControl.Git.UI
             }
         }
 
+        public static void RebindRepository()
+        {
+            if (environment == null)
+                return;
+            if (repository != null)
+                repository.LocksChanged -= RepositoryOnLocksChanged;
+            locks.Clear();
+            lastLocksChangedEvent = default(CacheUpdateEvent);
+            repository = environment.Repository;
+            if (repository != null)
+                repository.LocksChanged += RepositoryOnLocksChanged;
+        }
+
         public static string[] OnWillSaveAssets(string[] paths)
         {
             return paths;

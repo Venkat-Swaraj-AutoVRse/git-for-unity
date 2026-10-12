@@ -403,21 +403,27 @@ namespace Unity.VersionControl.Git.UI
             {
                 repository.CheckAndRaiseEventsIfCacheNewer(CacheType.RepositoryInfo, default(CacheUpdateEvent));
                 repository.CheckAndRaiseEventsIfCacheNewer(CacheType.GitStatus, default(CacheUpdateEvent));
-                repository.CheckAndRaiseEventsIfCacheNewer(CacheType.GitLocks, default(CacheUpdateEvent));
-                repository.CheckAndRaiseEventsIfCacheNewer(CacheType.GitLog, default(CacheUpdateEvent));
-                repository.CheckAndRaiseEventsIfCacheNewer(CacheType.GitAheadBehind, default(CacheUpdateEvent));
                 repository.CheckAndRaiseEventsIfCacheNewer(CacheType.Branches, default(CacheUpdateEvent));
             }
+
+            BranchName = string.Empty;
+            IsTracking = false;
+            Remote = null;
+            Ahead = Behind = 0;
+            Changes = NoChanges;
+            Locks = NoLocks;
+            Log = NoLog;
+            LocalBranches = RemoteBranches = NoBranches;
 
             myLockPaths.Clear();
             myLockOwners.Clear();
             foreach (var name in EditorPrefs.GetString(LockOwnerNamesPrefKey, string.Empty).Split('|'))
                 if (!string.IsNullOrEmpty(name))
                     myLockOwners.Add(name);
-            localLocksPending = repository != null;
+            localLocksPending = false;
 
             nextAutoFetch = EditorApplication.timeSinceStartup + FirstAutoFetchDelaySeconds;
-            MarkDirty(GitDataKind.All);
+            MarkDirty(GitDataKind.Repository | GitDataKind.User);
         }
 
         private void AttachRepository(IRepository repo)

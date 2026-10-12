@@ -140,10 +140,8 @@ namespace Unity.VersionControl.Git
         }
 
         /// <summary>
-        /// Persist a user-selected repository path and drop the cached environment so it is
-        /// re-resolved against the new path on next access. Pass null/empty to clear the
-        /// override and go back to auto-discovery. Callers should follow this with
-        /// <see cref="EntryPoint.Restart"/> so the application manager and UI pick up the change.
+        /// Persist a user-selected repository path. Pass null/empty to clear the override
+        /// and go back to auto-discovery. Callers switch the live manager separately.
         /// </summary>
         public void SetSelectedRepository(string path)
         {
@@ -151,9 +149,6 @@ namespace Unity.VersionControl.Git
             // The repositoryPath cache is only meaningful for the auto-discovered repo, so
             // clear it whenever the override changes to avoid it shadowing the new selection.
             repositoryPath = null;
-            // Force the environment to be rebuilt so InitializeRepository runs again with the
-            // new path the next time Environment is accessed.
-            environment = null;
             Save(true);
         }
 
@@ -276,6 +271,19 @@ namespace Unity.VersionControl.Git
             isInvalidating = false;
             refreshPending = false;
         }
+
+        public void ResetForRepository()
+        {
+            isInvalidating = false;
+            refreshPending = false;
+            forcedInvalidation = false;
+            InitializedAt = DateTimeOffset.MinValue;
+            LastUpdatedAt = DateTimeOffset.MinValue;
+            ClearData();
+            Save(false);
+        }
+
+        protected abstract void ClearData();
 
         protected void SaveData(DateTimeOffset now, bool isChanged)
         {
@@ -521,6 +529,15 @@ namespace Unity.VersionControl.Git
         public RepositoryInfoCache() : base(CacheType.RepositoryInfo)
         { }
 
+        protected override void ClearData()
+        {
+            currentGitRemote = GitRemote.Default;
+            currentGitBranch = GitBranch.Default;
+            currentConfigRemote = ConfigRemote.Default;
+            currentConfigBranch = ConfigBranch.Default;
+            currentHead = null;
+        }
+
         public void UpdateData(IRepositoryInfoCacheData data)
         {
             var now = DateTimeOffset.Now;
@@ -621,6 +638,15 @@ namespace Unity.VersionControl.Git
         public BranchesCache() : base(CacheType.Branches)
         { }
 
+        protected override void ClearData()
+        {
+            localBranches = remoteBranches = new GitBranch[0];
+            remotes = new GitRemote[0];
+            localConfigBranches = new LocalConfigBranchDictionary();
+            remoteConfigBranches = new RemoteConfigBranchDictionary();
+            configRemotes = new ConfigRemoteDictionary();
+        }
+
         public void SetRemotes(Dictionary<string, ConfigRemote> remoteConfigs, Dictionary<string, Dictionary<string, ConfigBranch>> configBranches, GitRemote[] gitRemotes, GitBranch[] gitBranches)
         {
             var now = DateTimeOffset.Now;
@@ -655,6 +681,8 @@ namespace Unity.VersionControl.Git
 
         public GitLogCache() : base(CacheType.GitLog)
         { }
+
+        protected override void ClearData() { log.Clear(); }
 
         public List<GitLogEntry> Log
         {
@@ -697,6 +725,8 @@ namespace Unity.VersionControl.Git
         public GitFileLogCache() : base(CacheType.GitFileLog)
         { }
 
+        protected override void ClearData() { fileLog = GitFileLog.Default; }
+
         public GitFileLog FileLog
         {
             get
@@ -737,6 +767,8 @@ namespace Unity.VersionControl.Git
 
         public GitAheadBehindCache() : base(CacheType.GitAheadBehind)
         { }
+
+        protected override void ClearData() { ahead = behind = 0; }
 
         public int Ahead
         {
@@ -793,6 +825,8 @@ namespace Unity.VersionControl.Git
         public GitStatusCache() : base(CacheType.GitStatus)
         { }
 
+        protected override void ClearData() { entries.Clear(); }
+
         public List<GitStatusEntry> Entries
         {
             get
@@ -833,6 +867,8 @@ namespace Unity.VersionControl.Git
 
         public GitLocksCache() : base(CacheType.GitLocks)
         { }
+
+        protected override void ClearData() { gitLocks.Clear(); }
 
         public List<GitLock> GitLocks
         {
@@ -875,6 +911,8 @@ namespace Unity.VersionControl.Git
 
         public GitUserCache() : base(CacheType.GitUser)
         {}
+
+        protected override void ClearData() { gitName = gitEmail = null; }
 
         public string Name
         {
