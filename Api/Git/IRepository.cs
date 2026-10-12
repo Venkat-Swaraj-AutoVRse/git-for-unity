@@ -102,6 +102,7 @@ namespace Unity.VersionControl.Git
         ITask DeleteBranch(string branch, bool force);
         ITask CreateBranch(string branch, string baseBranch);
         ITask SwitchBranch(string branch);
+        ITask MergeBranch(string sourceBranch);
         ITask UpdateFileLog(string path);
         void Refresh(CacheType cacheType);
         event Action<IProgress> OnProgress;

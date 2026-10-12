@@ -153,6 +153,7 @@ namespace Unity.VersionControl.Git
         public ITask DeleteBranch(string branch, bool force) => repositoryManager.DeleteBranch(branch, force);
         public ITask CreateBranch(string branch, string baseBranch) => repositoryManager.CreateBranch(branch, baseBranch);
         public ITask SwitchBranch(string branch) => repositoryManager.SwitchBranch(branch);
+        public ITask MergeBranch(string sourceBranch) => repositoryManager.MergeBranch(sourceBranch);
         public ITask UpdateFileLog(string path)
         {
             lastFileLog = path;

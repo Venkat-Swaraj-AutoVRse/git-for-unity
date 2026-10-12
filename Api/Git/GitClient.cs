@@ -20,6 +20,7 @@ namespace Unity.VersionControl.Git
         /// </summary>
         /// <returns>String output of git command</returns>
         ITask<string> Init();
+        ITask<string> Clone(string url, string destination, string parentDirectory);
 
         /// <summary>
         /// Executes `git lfs install` to install LFS hooks.
@@ -123,6 +124,7 @@ namespace Unity.VersionControl.Git
         /// <param name="branch">The branch to checkout</param>
         /// <returns>String output of git command</returns>
         ITask<string> SwitchBranch(string branch);
+        ITask<string> MergeBranch(string sourceBranch);
 
         /// <summary>
         /// Executes `git branch -d` to delete a branch.
@@ -325,6 +327,12 @@ namespace Unity.VersionControl.Git
                 .Configure(platform.ProcessManager);
         }
 
+        public ITask<string> Clone(string url, string destination, string parentDirectory)
+        {
+            return new GitCloneTask(platform, url, destination, Token)
+                .Configure(platform.ProcessManager, parentDirectory);
+        }
+
         ///<inheritdoc/>
         public ITask<string> LfsInstall()
         {
@@ -498,6 +506,12 @@ namespace Unity.VersionControl.Git
         public ITask<string> SwitchBranch(string branch)
         {
             return new GitSwitchBranchesTask(platform, branch, Token)
+                .Configure(platform.ProcessManager);
+        }
+
+        public ITask<string> MergeBranch(string sourceBranch)
+        {
+            return new GitMergeTask(platform, sourceBranch, Token)
                 .Configure(platform.ProcessManager);
         }
 

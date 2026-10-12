@@ -36,6 +36,7 @@ namespace Unity.VersionControl.Git
         ITask RemoteRemove(string remote);
         ITask RemoteChange(string remote, string url);
         ITask SwitchBranch(string branch);
+        ITask MergeBranch(string sourceBranch);
         ITask DeleteBranch(string branch, bool deleteUnmerged = false);
         ITask CreateBranch(string branch, string baseBranch);
         ITask LockFile(SPath file);
@@ -286,6 +287,12 @@ namespace Unity.VersionControl.Git
         public ITask SwitchBranch(string branch)
         {
             var task = GitClient.SwitchBranch(branch);
+            return HookupHandlers(task, true);
+        }
+
+        public ITask MergeBranch(string sourceBranch)
+        {
+            var task = GitClient.MergeBranch(sourceBranch);
             return HookupHandlers(task, true);
         }
 
