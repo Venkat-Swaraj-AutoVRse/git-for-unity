@@ -619,6 +619,10 @@
 .gfu-branch-picker__merge-actions { justify-content: flex-end; margin-top: 10px; }
 .gfu-branch-picker__merge-actions .gfu-btn { margin-left: 6px; }
 
+.gfu-repository-picker .gfu-branch-picker__list { max-height: 260px; min-height: 0; }
+.gfu-repository-picker__name { flex-grow: 1; flex-shrink: 1; margin-left: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gfu-root .gfu-repository-picker__footer > .gfu-btn { margin-top: 4px; }
+
 .gfu-clone-dialog { width: 420px; max-width: 95%; padding: 16px; }
 .gfu-clone-dialog__title { font-size: 15px; -unity-font-style: bold; color: var(--gfu-text-strong); }
 .gfu-clone-dialog__hint { margin-top: 4px; margin-bottom: 12px; white-space: normal; color: var(--gfu-faint); }

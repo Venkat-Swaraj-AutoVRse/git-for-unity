@@ -38,6 +38,7 @@ namespace Unity.VersionControl.Git.UI
         [NonSerialized] private VisualElement header;
         [NonSerialized] private Label repoTitle;
         [NonSerialized] private Label repoSubtitle;
+        [NonSerialized] private Button repoButton;
         [NonSerialized] private Button branchButton;
         [NonSerialized] private Label branchLabel;
         [NonSerialized] private SyncButton syncButton;
@@ -54,6 +55,7 @@ namespace Unity.VersionControl.Git.UI
         [NonSerialized] private LocksPanel locksPanel;
         [NonSerialized] private SettingsPanel settingsPanel;
         [NonSerialized] private BranchPicker branchPicker;
+        [NonSerialized] private RepositoryPicker repositoryPicker;
         [NonSerialized] private CloneRepositoryDialog cloneDialog;
         [NonSerialized] private List<RepositoryEntry> discoveredRepositories;
         [NonSerialized] private bool getLatestAfterCommit;
@@ -136,6 +138,8 @@ namespace Unity.VersionControl.Git.UI
 
             branchPicker = new BranchPicker(this);
             root.Add(branchPicker.Root);
+            repositoryPicker = new RepositoryPicker(SwitchRepository, ShowCloneDialog, BrowseRepository, RescanRepositories);
+            root.Add(repositoryPicker.Root);
 
             toast = GitUi.Row("gfu-toast");
             toastLabel = GitUi.Text(string.Empty, "gfu-toast__label");
@@ -174,6 +178,11 @@ namespace Unity.VersionControl.Git.UI
                 branchPicker.Close();
                 evt.StopPropagation();
             }
+            else if (evt.keyCode == KeyCode.Escape && repositoryPicker != null && repositoryPicker.IsOpen)
+            {
+                repositoryPicker.Close();
+                evt.StopPropagation();
+            }
             else if (evt.keyCode == KeyCode.F5)
             {
                 RefreshAll();
@@ -188,7 +197,7 @@ namespace Unity.VersionControl.Git.UI
             header = GitUi.Column("gfu-header");
 
             var top = GitUi.Row("gfu-header__top");
-            var repoButton = new Button(ShowRepositoryMenu);
+            repoButton = new Button(ShowRepositoryMenu);
             repoButton.AddToClassList("gfu-repo-button");
             repoButton.tooltip = "Switch between the project and any package with its own Git history";
             repoButton.Add(new GitIcon("repo", 20));
@@ -520,6 +529,7 @@ namespace Unity.VersionControl.Git.UI
                 discoveredRepositories = null;
                 getLatestAfterCommit = false;
                 branchPicker?.Close();
+                repositoryPicker?.Close();
                 cloneDialog?.Close();
                 if (activeTab == GitTab.History)
                     historyPanel.OnShow();
@@ -539,55 +549,41 @@ namespace Unity.VersionControl.Git.UI
 
         public void ShowRepositoryMenu()
         {
+            if (repositoryPicker == null)
+                return;
+            if (repositoryPicker.IsOpen)
+            {
+                repositoryPicker.Close();
+                return;
+            }
             var projectPath = Session.ProjectPath;
             if (discoveredRepositories == null && !string.IsNullOrEmpty(projectPath))
                 discoveredRepositories = RepositorySelector.Scan(projectPath);
+            branchPicker?.Close();
+            var top = Session.HasRepository ? repoButton.worldBound.yMax - root.worldBound.y + 4 : 48;
+            var left = Session.HasRepository ? repoButton.worldBound.xMin - root.worldBound.x :
+                Mathf.Max(8, (position.width - 340) / 2);
+            repositoryPicker.Open(left, top, root.resolvedStyle.height, discoveredRepositories, Session.RepositoryPath,
+                EnvironmentCache.Instance.SelectedRepositoryPath);
+        }
 
-            var menu = new GenericMenu();
-            var current = GitSession.Normalize(Session.RepositoryPath ?? string.Empty).TrimEnd('/');
-            var selected = EnvironmentCache.Instance.SelectedRepositoryPath;
+        private void BrowseRepository()
+        {
+            var picked = EditorUtility.OpenFolderPanel("Choose a Git repository", Session.ProjectPath ?? string.Empty, string.Empty);
+            if (!string.IsNullOrEmpty(picked))
+                SwitchRepository(picked);
+        }
 
-            menu.AddItem(new GUIContent("Automatic (the project's repository)"), string.IsNullOrEmpty(selected), () => SwitchRepository(null));
-            if (discoveredRepositories != null && discoveredRepositories.Count > 0)
-            {
-                menu.AddSeparator(string.Empty);
-                foreach (var entry in discoveredRepositories)
-                {
-                    var path = entry.Path;
-                    var isCurrent = string.Equals(GitSession.Normalize(path).TrimEnd('/'), current, StringComparison.OrdinalIgnoreCase);
-                    var label = entry.DisplayName == "<project root>" ? "Project" : entry.DisplayName;
-                    // GenericMenu treats '/' as a submenu separator; keep every repo as one flat entry.
-                    menu.AddItem(new GUIContent(label.Replace('/', '∕')), isCurrent, () => SwitchRepository(path));
-                }
-            }
-            if (!string.IsNullOrEmpty(selected) &&
-                (discoveredRepositories == null || !discoveredRepositories.Any(entry =>
-                    string.Equals(GitSession.Normalize(entry.Path).TrimEnd('/'), GitSession.Normalize(selected).TrimEnd('/'), StringComparison.OrdinalIgnoreCase))))
-            {
-                menu.AddSeparator(string.Empty);
-                menu.AddItem(new GUIContent(Prettify(Path.GetFileName(selected.TrimEnd('/', '\\')))),
-                    string.Equals(GitSession.Normalize(selected).TrimEnd('/'), current, StringComparison.OrdinalIgnoreCase),
-                    () => SwitchRepository(selected));
-            }
-            menu.AddSeparator(string.Empty);
-            menu.AddItem(new GUIContent("Clone repository…"), false, ShowCloneDialog);
-            menu.AddItem(new GUIContent("Browse for a folder…"), false, () =>
-            {
-                var picked = EditorUtility.OpenFolderPanel("Choose a Git repository", projectPath ?? string.Empty, string.Empty);
-                if (!string.IsNullOrEmpty(picked))
-                    SwitchRepository(picked);
-            });
-            menu.AddItem(new GUIContent("Look for repositories again"), false, () =>
-            {
-                discoveredRepositories = null;
-                ShowRepositoryMenu();
-            });
-            menu.ShowAsContext();
+        private void RescanRepositories()
+        {
+            discoveredRepositories = RepositorySelector.Scan(Session.ProjectPath);
+            repositoryPicker?.Refresh(discoveredRepositories);
         }
 
         private void ShowCloneDialog()
         {
             branchPicker?.Close();
+            repositoryPicker?.Close();
             cloneDialog?.Open();
         }
 
@@ -608,6 +604,7 @@ namespace Unity.VersionControl.Git.UI
 
         private void ToggleBranchPicker()
         {
+            repositoryPicker?.Close();
             if (branchPicker.IsOpen)
             {
                 branchPicker.Close();
