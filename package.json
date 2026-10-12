@@ -1,11 +1,12 @@
 {
-  "name": "com.spoiledcat.git.api",
+  "name": "com.autovrse.unitygit.api",
   "displayName": "Git for Unity API",
   "description": "Git for Unity API library. This package contains all the functionality of Git for Unity, without any UI. Git for Unity integrates source control into your work with friendly and accessible tools and workflows.",
-  "version": "1.0.62-preview-g8b39814829",
+  "version": "0.0.1",
   "license" : "MIT",
     "author": {
-      "email": "shana@spoiledcat.net"
+      "name": "Venkat Swaraj Goli",
+      "email": "venkat.swaraj@autovrse.in"
     },
     "repository" : {
       "type" : "git",
