@@ -21,6 +21,7 @@ namespace Unity.VersionControl.Git.UI
         public bool IsOpen { get; private set; }
 
         private readonly VisualElement popover;
+        private readonly VisualElement searchRow;
         private readonly TextField search;
         private readonly ScrollView list;
         private readonly VisualElement notice;
@@ -29,6 +30,11 @@ namespace Unity.VersionControl.Git.UI
         private readonly Button newBranchButton;
         private readonly VisualElement newBranchForm;
         private readonly TextField newBranchName;
+        private readonly Button mergeButton;
+        private readonly VisualElement mergeForm;
+        private readonly DropdownField mergeSource;
+        private readonly DropdownField mergeTarget;
+        private readonly Button confirmMerge;
 
         public BranchPicker(GitWindow window)
         {
@@ -44,7 +50,8 @@ namespace Unity.VersionControl.Git.UI
             search = GitUi.Field("Find a branch");
             search.AddToClassList("gfu-search");
             search.RegisterValueChangedCallback(_ => Rebuild());
-            popover.Add(GitUi.Row("gfu-popover__search", search));
+            searchRow = GitUi.Row("gfu-popover__search", search);
+            popover.Add(searchRow);
 
             list = new ScrollView(ScrollViewMode.Vertical);
             list.AddToClassList("gfu-branch-picker__list");
@@ -77,6 +84,27 @@ namespace Unity.VersionControl.Git.UI
             newBranchForm.Add(GitUi.Button("Create", CreateBranch, "primary"));
             newBranchForm.style.display = DisplayStyle.None;
             footer.Add(newBranchForm);
+
+            mergeButton = GitUi.Button("Merge branches", ShowMergeForm, "secondary", "branch");
+            mergeButton.AddToClassList("gfu-btn--stretch");
+            footer.Add(mergeButton);
+            mergeForm = GitUi.Column("gfu-branch-picker__merge");
+            mergeForm.Add(GitUi.Text("Merge a branch into another", "gfu-branch-picker__merge-title"));
+            mergeForm.Add(GitUi.Text("Source branch", "gfu-caption"));
+            mergeSource = new DropdownField();
+            mergeSource.RegisterValueChangedCallback(_ => UpdateMergeButton());
+            mergeForm.Add(mergeSource);
+            mergeForm.Add(GitUi.Text("Destination branch", "gfu-caption"));
+            mergeTarget = new DropdownField();
+            mergeTarget.RegisterValueChangedCallback(_ => UpdateMergeButton());
+            mergeForm.Add(mergeTarget);
+            var mergeActions = GitUi.Row("gfu-branch-picker__merge-actions");
+            mergeActions.Add(GitUi.Button("Cancel", HideMergeForm, "ghost"));
+            confirmMerge = GitUi.Button("Merge", MergeBranches, "primary");
+            mergeActions.Add(confirmMerge);
+            mergeForm.Add(mergeActions);
+            mergeForm.style.display = DisplayStyle.None;
+            footer.Add(mergeForm);
             popover.Add(footer);
 
             Root.Add(popover);
@@ -89,8 +117,13 @@ namespace Unity.VersionControl.Git.UI
             popover.style.top = top;
             Root.style.display = DisplayStyle.Flex;
             search.SetValueWithoutNotify(string.Empty);
+            searchRow.style.display = DisplayStyle.Flex;
+            list.style.display = DisplayStyle.Flex;
             newBranchForm.style.display = DisplayStyle.None;
             newBranchButton.style.display = DisplayStyle.Flex;
+            mergeForm.style.display = DisplayStyle.None;
+            footer.RemoveFromClassList("gfu-popover__footer--merge");
+            mergeButton.style.display = DisplayStyle.Flex;
             window.SetBranchButtonOpen(true);
             Session.Repository?.Refresh(CacheType.Branches);
             Rebuild();
@@ -120,6 +153,7 @@ namespace Unity.VersionControl.Git.UI
             bool Match(string name) => string.IsNullOrEmpty(query) || name.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0;
 
             var locals = Session.LocalBranches.Select(b => b.Name).Where(n => !string.IsNullOrEmpty(n)).ToList();
+            UpdateMergeChoices(locals, current);
             var localSet = new HashSet<string>(locals, StringComparer.OrdinalIgnoreCase);
             var trackedRemotes = new HashSet<string>(Session.LocalBranches.Select(b => b.Tracking).Where(t => !string.IsNullOrEmpty(t)), StringComparer.OrdinalIgnoreCase);
 
@@ -164,9 +198,11 @@ namespace Unity.VersionControl.Git.UI
                 list.Add(GitUi.Text(string.IsNullOrEmpty(query) ? "No branches yet." : "No branch matches \"" + query + "\".", "gfu-section-empty"));
 
             var changes = window.Session.Changes.Count > 0;
-            notice.style.display = changes ? DisplayStyle.Flex : DisplayStyle.None;
+            notice.style.display = changes && mergeForm.style.display != DisplayStyle.Flex
+                ? DisplayStyle.Flex : DisplayStyle.None;
             noticeLabel.text = "Your uncommitted changes come with you when you switch.";
-            GitUi.SetButtonText(newBranchButton, "New branch from " + (string.IsNullOrEmpty(current) ? "here" : current));
+            newBranchButton.tooltip = "Create a branch from " + (string.IsNullOrEmpty(current) ? "the current branch" : current);
+            mergeButton.SetEnabled(locals.Count > 1);
         }
 
         private VisualElement Item(string name, string subtitle, bool isCurrent, Action onClick, Action<DropdownMenu> contextMenu = null)
@@ -228,9 +264,89 @@ namespace Unity.VersionControl.Git.UI
         private void ShowNewBranchForm()
         {
             newBranchButton.style.display = DisplayStyle.None;
+            mergeButton.style.display = DisplayStyle.None;
             newBranchForm.style.display = DisplayStyle.Flex;
             newBranchName.SetValueWithoutNotify(string.Empty);
             newBranchName.schedule.Execute(() => newBranchName.Focus()).StartingIn(30);
+        }
+
+        private void ShowMergeForm()
+        {
+            searchRow.style.display = DisplayStyle.None;
+            list.style.display = DisplayStyle.None;
+            notice.style.display = DisplayStyle.None;
+            newBranchButton.style.display = DisplayStyle.None;
+            mergeButton.style.display = DisplayStyle.None;
+            footer.AddToClassList("gfu-popover__footer--merge");
+            mergeForm.style.display = DisplayStyle.Flex;
+            UpdateMergeButton();
+        }
+
+        private void HideMergeForm()
+        {
+            mergeForm.style.display = DisplayStyle.None;
+            footer.RemoveFromClassList("gfu-popover__footer--merge");
+            searchRow.style.display = DisplayStyle.Flex;
+            list.style.display = DisplayStyle.Flex;
+            newBranchButton.style.display = DisplayStyle.Flex;
+            mergeButton.style.display = DisplayStyle.Flex;
+            Rebuild();
+        }
+
+        private void UpdateMergeChoices(List<string> branches, string current)
+        {
+            var choices = branches.OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList();
+            var source = mergeSource.value;
+            var target = mergeTarget.value;
+            mergeSource.choices = choices;
+            mergeTarget.choices = choices;
+            mergeSource.SetValueWithoutNotify(choices.Contains(source) ? source : choices.FirstOrDefault(n => n != current));
+            mergeTarget.SetValueWithoutNotify(choices.Contains(target) ? target : current);
+            UpdateMergeButton();
+        }
+
+        private void UpdateMergeButton()
+        {
+            confirmMerge.SetEnabled(!string.IsNullOrEmpty(mergeSource.value) &&
+                !string.IsNullOrEmpty(mergeTarget.value) && mergeSource.value != mergeTarget.value);
+        }
+
+        private void MergeBranches()
+        {
+            var repo = Session.Repository;
+            var source = mergeSource.value;
+            var target = mergeTarget.value;
+            if (repo == null || !mergeSource.choices.Contains(source) || !mergeTarget.choices.Contains(target) || source == target)
+                return;
+            if (Session.Changes.Count > 0)
+            {
+                window.ShowToast("Commit or discard your changes before merging branches.", "warn");
+                return;
+            }
+            if (!EditorUtility.DisplayDialog("Merge branches?",
+                    "Merge " + source + " into " + target + "? The destination branch will be checked out, and Git may create a merge commit.",
+                    "Merge", "Cancel"))
+                return;
+
+            var task = target == Session.BranchName
+                ? repo.MergeBranch(source)
+                : repo.SwitchBranch(target).Then(repo.MergeBranch(source));
+            var started = Session.Run("Merging " + source + " into " + target + "…", task, (ok, ex) =>
+            {
+                AssetDatabase.Refresh();
+                Session.Refresh(false);
+                if (ok)
+                    window.ShowToast("Merged " + source + " into " + target + ".", "good");
+                else
+                {
+                    window.ShowTab(GitTab.Changes);
+                    window.ShowToast("Merge stopped: " + GitSession.FriendlyError(ex) + " Check Changes for conflicts.", "error", sticky: true);
+                }
+            });
+            if (started)
+                Close();
+            else
+                window.ShowToast("Still busy with the last action. Try again in a moment.", "info");
         }
 
         private void CreateBranch()

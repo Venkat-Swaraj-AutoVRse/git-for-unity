@@ -54,6 +54,7 @@ namespace Unity.VersionControl.Git.UI
         [NonSerialized] private LocksPanel locksPanel;
         [NonSerialized] private SettingsPanel settingsPanel;
         [NonSerialized] private BranchPicker branchPicker;
+        [NonSerialized] private CloneRepositoryDialog cloneDialog;
         [NonSerialized] private List<RepositoryEntry> discoveredRepositories;
         [NonSerialized] private bool getLatestAfterCommit;
 
@@ -141,6 +142,9 @@ namespace Unity.VersionControl.Git.UI
             toast.Add(toastLabel);
             toast.Add(GitUi.Button(null, HideToast, "ghost", "close", "Dismiss"));
             toast.style.display = DisplayStyle.None;
+
+            cloneDialog = new CloneRepositoryDialog(this);
+            root.Add(cloneDialog.Root);
             root.Add(toast);
 
             root.RegisterCallback<KeyDownEvent>(OnKeyDown, TrickleDown.TrickleDown);
@@ -160,7 +164,12 @@ namespace Unity.VersionControl.Git.UI
 
         private void OnKeyDown(KeyDownEvent evt)
         {
-            if (evt.keyCode == KeyCode.Escape && branchPicker != null && branchPicker.IsOpen)
+            if (evt.keyCode == KeyCode.Escape && cloneDialog != null && cloneDialog.IsOpen)
+            {
+                cloneDialog.Close();
+                evt.StopPropagation();
+            }
+            else if (evt.keyCode == KeyCode.Escape && branchPicker != null && branchPicker.IsOpen)
             {
                 branchPicker.Close();
                 evt.StopPropagation();
@@ -227,9 +236,10 @@ namespace Unity.VersionControl.Git.UI
             var e = GitUi.Column("gfu-empty gfu-empty--window");
             e.Add(new GitIcon("repo", 40));
             e.Add(GitUi.Text("No Git repository here yet", "gfu-empty__title"));
-            e.Add(GitUi.Text("This project isn't connected to Git. Pick a repository inside the project, or set one up from the legacy window.", "gfu-empty__body"));
+            e.Add(GitUi.Text("Choose a repository, clone one, or set up Git for this project.", "gfu-empty__body"));
             var row = GitUi.Row("gfu-empty__actions");
             row.Add(GitUi.Button("Choose repository", ShowRepositoryMenu, "primary", "repo"));
+            row.Add(GitUi.Button("Clone repository", ShowCloneDialog, "secondary", "repo"));
             row.Add(GitUi.Button("Set up in legacy window", () => Menus.ShowWindow(EntryPoint.ApplicationManager), "secondary"));
             e.Add(row);
             return e;
@@ -510,6 +520,7 @@ namespace Unity.VersionControl.Git.UI
                 discoveredRepositories = null;
                 getLatestAfterCommit = false;
                 branchPicker?.Close();
+                cloneDialog?.Close();
                 if (activeTab == GitTab.History)
                     historyPanel.OnShow();
                 else if (activeTab == GitTab.Locks)
@@ -549,7 +560,17 @@ namespace Unity.VersionControl.Git.UI
                     menu.AddItem(new GUIContent(label.Replace('/', '∕')), isCurrent, () => SwitchRepository(path));
                 }
             }
+            if (!string.IsNullOrEmpty(selected) &&
+                (discoveredRepositories == null || !discoveredRepositories.Any(entry =>
+                    string.Equals(GitSession.Normalize(entry.Path).TrimEnd('/'), GitSession.Normalize(selected).TrimEnd('/'), StringComparison.OrdinalIgnoreCase))))
+            {
+                menu.AddSeparator(string.Empty);
+                menu.AddItem(new GUIContent(Prettify(Path.GetFileName(selected.TrimEnd('/', '\\')))),
+                    string.Equals(GitSession.Normalize(selected).TrimEnd('/'), current, StringComparison.OrdinalIgnoreCase),
+                    () => SwitchRepository(selected));
+            }
             menu.AddSeparator(string.Empty);
+            menu.AddItem(new GUIContent("Clone repository…"), false, ShowCloneDialog);
             menu.AddItem(new GUIContent("Browse for a folder…"), false, () =>
             {
                 var picked = EditorUtility.OpenFolderPanel("Choose a Git repository", projectPath ?? string.Empty, string.Empty);
@@ -562,6 +583,12 @@ namespace Unity.VersionControl.Git.UI
                 ShowRepositoryMenu();
             });
             menu.ShowAsContext();
+        }
+
+        private void ShowCloneDialog()
+        {
+            branchPicker?.Close();
+            cloneDialog?.Open();
         }
 
         private void SwitchRepository(string path)

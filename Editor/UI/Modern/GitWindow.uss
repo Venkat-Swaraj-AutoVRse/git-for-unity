@@ -511,8 +511,8 @@
 .gfu-empty__badge > .gfu-icon { color: var(--gfu-good); }
 .gfu-empty__title { font-size: 16px; -unity-font-style: bold; color: var(--gfu-text-strong); margin-top: 6px; -unity-text-align: middle-center; white-space: normal; }
 .gfu-empty__body { font-size: 12.5px; color: var(--gfu-dim); max-width: 360px; margin-top: 8px; -unity-text-align: middle-center; white-space: normal; }
-.gfu-empty__actions { margin-top: 16px; }
-.gfu-root .gfu-empty__actions > .gfu-btn { margin: 0 4px; }
+.gfu-empty__actions { flex-direction: column; align-items: center; margin-top: 16px; }
+.gfu-root .gfu-empty__actions > .gfu-btn { margin: 3px 0; }
 .gfu-root .gfu-empty > .gfu-btn { margin-top: 14px; }
 .gfu-empty__card { align-self: stretch; margin-top: 24px; }
 .gfu-empty__card > .gfu-callout { margin: 0; }
@@ -576,6 +576,7 @@
 .gfu-root.gfu-light .gfu-popover { background-color: #EDEDED; border-color: #8A8A8A; }
 .gfu-popover__search { padding: 10px; }
 .gfu-popover__footer { padding: 10px; border-top-width: 1px; border-top-color: var(--gfu-line-soft); margin-top: 8px; }
+.gfu-popover__footer--merge { margin-top: 0; padding-top: 8px; border-top-width: 0; }
 
 .gfu-branch-picker__list { flex-shrink: 1; max-height: 300px; }
 .gfu-branch-picker__list .gfu-section-label { padding-top: 8px; }
@@ -610,6 +611,21 @@
 
 .gfu-branch-picker__notice-text { font-size: 11.5px; margin-left: 8px; white-space: normal; flex-shrink: 1; }
 .gfu-root .gfu-branch-picker__form > .gfu-btn { margin-left: 6px; }
+.gfu-branch-picker__merge { margin-top: 0; }
+.gfu-branch-picker__merge-title { font-size: 15px; -unity-font-style: bold; color: var(--gfu-text-strong); white-space: normal; margin-bottom: 6px; }
+.gfu-branch-picker__merge .gfu-caption { margin-top: 8px; }
+.gfu-branch-picker__merge .unity-base-field { min-height: 28px; }
+.gfu-branch-picker__merge .unity-base-field__input { min-height: 28px; }
+.gfu-branch-picker__merge-actions { justify-content: flex-end; margin-top: 10px; }
+.gfu-branch-picker__merge-actions .gfu-btn { margin-left: 6px; }
+
+.gfu-clone-dialog { width: 420px; max-width: 95%; padding: 16px; }
+.gfu-clone-dialog__title { font-size: 15px; -unity-font-style: bold; color: var(--gfu-text-strong); }
+.gfu-clone-dialog__hint { margin-top: 4px; margin-bottom: 12px; white-space: normal; color: var(--gfu-faint); }
+.gfu-clone-dialog .gfu-caption { margin-top: 10px; margin-bottom: 4px; }
+.gfu-clone-dialog__path .gfu-field { flex-grow: 1; margin-right: 6px; }
+.gfu-clone-dialog__actions { justify-content: flex-end; margin-top: 16px; }
+.gfu-clone-dialog__actions .gfu-btn { margin-left: 6px; }
 
 /* ---------------------------------------------------------------- settings */
 
