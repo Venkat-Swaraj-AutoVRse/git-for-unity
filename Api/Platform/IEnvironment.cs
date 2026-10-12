@@ -14,6 +14,7 @@ namespace Unity.VersionControl.Git
     {
         IGitEnvironment Initialize(SPath extensionInstallPath, string projectPath, string unityVersion = null, string EditorApplication_applicationPath = null, string EditorApplication_applicationContentsPath = null);
         void InitializeRepository(SPath? expectedRepositoryPath = null);
+        void SwitchRepository(SPath? repositoryPath);
         SPath GetFolder(Folders folder);
 
         GitInstaller.GitInstallationState GitInstallationState { get; set; }

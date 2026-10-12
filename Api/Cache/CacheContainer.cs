@@ -35,6 +35,12 @@ namespace Unity.VersionControl.Git
             }
         }
 
+        public void ResetForRepository()
+        {
+            foreach (var cache in caches.Values)
+                cache.Value.ResetForRepository();
+        }
+
         private IManagedCache SetupCache(IManagedCache cache)
         {
             cache.CacheInvalidated += OnCacheInvalidated;

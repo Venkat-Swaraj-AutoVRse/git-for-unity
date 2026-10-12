@@ -83,6 +83,13 @@ namespace Unity.VersionControl.Git
             }
         }
 
+        public void SwitchRepository(SPath? repositoryPath)
+        {
+            Repository = null;
+            RepositoryPath = SPath.Default;
+            InitializeRepository(repositoryPath);
+        }
+
         public SPath GetFolder(Folders folder)
         {
             switch (folder)

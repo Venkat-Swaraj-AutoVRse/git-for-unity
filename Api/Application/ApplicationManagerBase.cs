@@ -303,6 +303,17 @@ namespace Unity.VersionControl.Git
             Logger.Trace($"Got a repository? {Environment.Repository?.LocalPath ?? "null"}");
         }
 
+        public virtual void SwitchRepository(SPath? repositoryPath)
+        {
+            repositoryManager?.Dispose();
+            repositoryManager = null;
+            Environment.Repository?.Dispose();
+            Environment.User?.OnRepositorySwitched();
+            Environment.CacheContainer.ResetForRepository();
+            Environment.SwitchRepository(repositoryPath);
+            RestartRepository();
+        }
+
         public virtual void InitializeUI() {}
         protected virtual void InitializationComplete() {}
 

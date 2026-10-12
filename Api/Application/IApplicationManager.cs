@@ -22,5 +22,6 @@ namespace Unity.VersionControl.Git
         event Action<IProgress> OnProgress;
         void SetupGit(GitInstaller.GitInstallationState state);
         void RestartRepository();
+        void SwitchRepository(IO.SPath? repositoryPath);
     }
 }

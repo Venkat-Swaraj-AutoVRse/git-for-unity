@@ -31,6 +31,7 @@ namespace Unity.VersionControl.Git
         IRepositoryInfoCache RepositoryInfoCache { get; }
         void ValidateAll();
         void InvalidateAll();
+        void ResetForRepository();
         IManagedCache GetCache(CacheType cacheType);
         void CheckAndRaiseEventsIfCacheNewer(CacheType cacheType, CacheUpdateEvent cacheUpdateEvent);
     }
@@ -49,6 +50,7 @@ namespace Unity.VersionControl.Git
         /// </summary>
         void InvalidateData(bool force);
         void ResetInvalidation();
+        void ResetForRepository();
 
         DateTimeOffset LastUpdatedAt { get; }
         CacheType CacheType { get; }

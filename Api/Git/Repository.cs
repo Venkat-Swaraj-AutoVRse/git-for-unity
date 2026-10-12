@@ -85,10 +85,7 @@ namespace Unity.VersionControl.Git
 
             cacheContainer = container;
             cacheContainer.CacheInvalidated += CacheHasBeenInvalidated;
-            cacheContainer.CacheUpdated += (cacheType, offset) =>
-            {
-                cacheUpdateEvents[cacheType](new CacheUpdateEvent(cacheType, offset));
-            };
+            cacheContainer.CacheUpdated += OnCacheUpdated;
         }
 
         public void Initialize(IRepositoryManager theRepositoryManager, ITaskManager theTaskManager)
@@ -200,7 +197,7 @@ namespace Unity.VersionControl.Git
         private void RefreshCache(CacheType cacheType)
         {
             // file watcher driven: don't force, so unchanged results don't rebuild the UI
-            taskManager.RunInUI(() => Refresh(cacheType, false));
+            RunInUIIfActive(() => Refresh(cacheType, false));
         }
 
         public void Refresh(CacheType cacheType)
@@ -212,12 +209,16 @@ namespace Unity.VersionControl.Git
         {
             var cache = cacheContainer.GetCache(cacheType);
             cache.InvalidateData(force);
+        }
 
-            // take the opportunity to possibly refresh the locks cache, if it has timed out
-            if (cacheType != CacheType.GitLocks)
-            {
-                cacheContainer.GetCache(CacheType.GitLocks).ValidateData();
-            }
+        private void OnCacheUpdated(CacheType cacheType, DateTimeOffset offset)
+        {
+            cacheUpdateEvents[cacheType](new CacheUpdateEvent(cacheType, offset));
+        }
+
+        private void RunInUIIfActive(Action update)
+        {
+            taskManager.RunInUI(() => { if (!disposed) update(); });
         }
 
         public ITask ConfigureMergeSettings(SPath unityYamlMergeExec, string keyName = "unityyamlmerge")
@@ -271,6 +272,8 @@ namespace Unity.VersionControl.Git
 
         private void CacheHasBeenInvalidated(CacheType cacheType)
         {
+            if (disposed)
+                return;
             if (repositoryManager == null)
             {
                 if (!cacheInvalidationRequests.Contains(cacheType))
@@ -289,7 +292,10 @@ namespace Unity.VersionControl.Git
                     break;
 
                 case CacheType.GitFileLog:
-                    repositoryManager?.UpdateFileLog(lastFileLog).Catch(ex => InvalidationFailed(ex, cacheType)).Start();
+                    if (!string.IsNullOrEmpty(lastFileLog))
+                        repositoryManager?.UpdateFileLog(lastFileLog).Catch(ex => InvalidationFailed(ex, cacheType)).Start();
+                    else
+                        cacheContainer.GetCache(cacheType).ResetInvalidation();
                     break;
 
                 case CacheType.GitAheadBehind:
@@ -297,10 +303,7 @@ namespace Unity.VersionControl.Git
                     break;
 
                 case CacheType.GitLocks:
-                    if (CurrentRemote != null)
-                    {
-                        repositoryManager?.UpdateLocks().Catch(ex => InvalidationFailed(ex, cacheType)).Start();
-                    }
+                    repositoryManager?.UpdateLocks().Catch(ex => InvalidationFailed(ex, cacheType)).Start();
                     break;
 
                 case CacheType.GitUser:
@@ -322,6 +325,8 @@ namespace Unity.VersionControl.Git
 
         private bool InvalidationFailed(Exception ex, CacheType cacheType)
         {
+            if (disposed)
+                return false;
             Logger.Warning(ex, "Error invalidating {0}", cacheType);
             var managedCache = cacheContainer.GetCache(cacheType);
             managedCache.ResetInvalidation();
@@ -331,7 +336,7 @@ namespace Unity.VersionControl.Git
 
         private void RepositoryManagerOnCurrentBranchUpdated(ConfigBranch? branch, ConfigRemote? remote, string head)
         {
-            taskManager.RunInUI(() =>
+            RunInUIIfActive(() =>
             {
                 var data = new RepositoryInfoCacheData();
                 data.CurrentConfigBranch = branch;
@@ -350,7 +355,7 @@ namespace Unity.VersionControl.Git
 
         private void RepositoryManagerOnGitStatusUpdated(GitStatus gitStatus)
         {
-            taskManager.RunInUI(() =>
+            RunInUIIfActive(() =>
             {
                 cacheContainer.GitStatusEntriesCache.Entries = gitStatus.Entries;
                 cacheContainer.GitTrackingStatusCache.Ahead = gitStatus.Ahead;
@@ -360,7 +365,7 @@ namespace Unity.VersionControl.Git
 
         private void RepositoryManagerOnGitAheadBehindStatusUpdated(GitAheadBehindStatus aheadBehindStatus)
         {
-            taskManager.RunInUI(() =>
+            RunInUIIfActive(() =>
             {
                 cacheContainer.GitTrackingStatusCache.Ahead = aheadBehindStatus.Ahead;
                 cacheContainer.GitTrackingStatusCache.Behind = aheadBehindStatus.Behind;
@@ -369,23 +374,23 @@ namespace Unity.VersionControl.Git
 
         private void RepositoryManagerOnGitLogUpdated(List<GitLogEntry> gitLogEntries)
         {
-            taskManager.RunInUI(() => cacheContainer.GitLogCache.Log = gitLogEntries);
+            RunInUIIfActive(() => cacheContainer.GitLogCache.Log = gitLogEntries);
         }
 
         private void RepositoryManagerOnGitFileLogUpdated(GitFileLog gitFileLog)
         {
-            taskManager.RunInUI(() => cacheContainer.GitFileLogCache.FileLog = gitFileLog);
+            RunInUIIfActive(() => cacheContainer.GitFileLogCache.FileLog = gitFileLog);
         }
 
         private void RepositoryManagerOnGitLocksUpdated(List<GitLock> gitLocks)
         {
-            taskManager.RunInUI(() => cacheContainer.GitLocksCache.GitLocks = gitLocks);
+            RunInUIIfActive(() => cacheContainer.GitLocksCache.GitLocks = gitLocks);
         }
 
         private void RepositoryManagerOnRemoteBranchesUpdated(Dictionary<string, ConfigRemote> remoteConfigs,
             Dictionary<string, Dictionary<string, ConfigBranch>> remoteConfigBranches)
         {
-            taskManager.RunInUI(() => {
+            RunInUIIfActive(() => {
                 var gitRemotes = remoteConfigs.Values.Select(GetGitRemote).ToArray();
                 var gitRemoteBranches = remoteConfigBranches.Values.SelectMany(x => x.Values).Select(GetRemoteGitBranch).ToArray();
 
@@ -395,7 +400,7 @@ namespace Unity.VersionControl.Git
 
         private void RepositoryManagerOnLocalBranchesUpdated(Dictionary<string, ConfigBranch> localConfigBranchDictionary)
         {
-            taskManager.RunInUI(() => {
+            RunInUIIfActive(() => {
                 var gitLocalBranches = localConfigBranchDictionary.Values.Select(x => GetLocalGitBranch(x)).ToArray();
                 cacheContainer.BranchCache.SetLocals(localConfigBranchDictionary, gitLocalBranches);
             });
@@ -417,6 +422,11 @@ namespace Unity.VersionControl.Git
                 if (!disposed)
                 {
                     disposed = true;
+                    if (cacheContainer != null)
+                    {
+                        cacheContainer.CacheInvalidated -= CacheHasBeenInvalidated;
+                        cacheContainer.CacheUpdated -= OnCacheUpdated;
+                    }
                 }
             }
         }
@@ -519,6 +529,7 @@ namespace Unity.VersionControl.Git
         string Email { get; }
         event Action<CacheUpdateEvent> Changed;
         void Initialize(IGitClient client);
+        void OnRepositorySwitched();
         void SetNameAndEmail(string name, string email);
     }
 
@@ -528,6 +539,7 @@ namespace Unity.VersionControl.Git
         private ICacheContainer cacheContainer;
         private IGitClient gitClient;
         private bool needsRefresh;
+        private int repositoryGeneration;
 
         public event Action<CacheUpdateEvent> Changed;
 
@@ -554,10 +566,17 @@ namespace Unity.VersionControl.Git
             }
         }
 
+        public void OnRepositorySwitched()
+        {
+            repositoryGeneration++;
+        }
+
         public void SetNameAndEmail(string name, string email)
         {
+            var generation = repositoryGeneration;
             gitClient.SetConfigNameAndEmail(name, email)
                      .ThenInUI(value => {
+                         if (generation != repositoryGeneration) return;
                          Name = value.Name;
                          Email = value.Email;
                      })
@@ -592,10 +611,12 @@ namespace Unity.VersionControl.Git
                 return;
             }
 
+            var generation = repositoryGeneration;
             gitClient.GetConfigUserAndEmail()
-                     .Catch(InvalidationFailed)
+                     .Catch(ex => generation == repositoryGeneration && InvalidationFailed(ex))
                      .ThenInUI(value =>
                      {
+                         if (generation != repositoryGeneration) return;
                          Name = value.Name;
                          Email = value.Email;
                      }).Start();
